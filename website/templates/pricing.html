@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}Pricing - Recovery Manager{% endblock %}
+
+{% block content %}
+<h1 class="text-center mb-5">Choose Your Plan</h1>
+
+<div class="row justify-content-center">
+    <div class="col-md-4">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white text-center">
+                <h3>Monthly Subscription</h3>
+            </div>
+            <div class="card-body">
+                <h2 class="card-title text-center">£29.99<small class="text-muted">/month</small></h2>
+                <ul class="list-group list-group-flush mb-4">
+                    <li class="list-group-item">Real-time job notifications</li>
+                    <li class="list-group-item">Customizable location radius</li>
+                    <li class="list-group-item">WhatsApp integration</li>
+                    <li class="list-group-item">24/7 job monitoring</li>
+                    <li class="list-group-item">Cancel anytime</li>
+                </ul>
+                <div class="d-grid">
+                    <a href="/website/signup" class="btn btn-primary">Subscribe Now</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

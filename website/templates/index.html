@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}Recovery Manager - Job Matching Service{% endblock %}
+
+{% block content %}
+<div class="row align-items-center">
+    <div class="col-lg-6">
+        <h1>Recovery Job Matching Service</h1>
+        <p class="lead">Get notified about recovery jobs in your area instantly. Never miss an opportunity again.</p>
+        <div class="mt-4">
+            <a href="/website/pricing" class="btn btn-primary btn-lg">Get Started</a>
+            <a href="/website/contact" class="btn btn-outline-secondary btn-lg ms-2">Learn More</a>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <img src="https://placehold.co/600x400/e9ecef/495057?text=Recovery+Truck" alt="Recovery Truck" class="img-fluid rounded shadow">
+    </div>
+</div>
+
+<div class="row mt-5">
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">Real-time Notifications</h5>
+                <p class="card-text">Receive instant WhatsApp notifications about jobs in your area.</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">Location-based Matching</h5>
+                <p class="card-text">Only get notified about jobs within your specified range.</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">AI-Powered</h5>
+                <p class="card-text">Our AI analyzes job descriptions to ensure you only get relevant opportunities.</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

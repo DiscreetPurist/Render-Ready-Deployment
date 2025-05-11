@@ -1,0 +1,18 @@
+/* Custom styles for Recovery Manager */
+.hero-section {
+  padding: 5rem 0;
+  background-color: #f8f9fa;
+}
+
+.feature-icon {
+  font-size: 2.5rem;
+  color: #0d6efd;
+  margin-bottom: 1rem;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .hero-section {
+    padding: 3rem 0;
+  }
+}

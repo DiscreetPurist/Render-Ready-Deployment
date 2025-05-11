@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: recovery-manager
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn -c gunicorn_config.py app:app
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.9.0
+      - key: PORT
+        value: 10000
+      - key: RENDER
+        value: true
+      - key: USER_STORAGE_FILE
+        value: /tmp/users.json
+      - key: DEBUG
+        value: false
+      - key: SETUP_WEBHOOK
+        value: true
+    autoDeploy: true
