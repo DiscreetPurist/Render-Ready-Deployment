@@ -1,7 +1,7 @@
 import os
 import logging
 from openai import OpenAI
-from openai.error import OpenAIError
+from openai import APIError, APIConnectionError, RateLimitError
 
 # Initialize OpenAI client with API key from environment variables
 def get_openai_client():
@@ -40,10 +40,10 @@ def generate_response_for_user(message_body, user):
         
         # Call OpenAI API
         response = client.chat.completions.create(
-            model="gpt-4.1",
+            model="gpt-4",
             temperature=1.0,
             messages=[
-                {"role": "developer", "content": prompt},
+                {"role": "system", "content": prompt},
                 {"role": "user", "content": message_body}
             ]
         )
@@ -57,7 +57,7 @@ def generate_response_for_user(message_body, user):
         
         return ai_response
     
-    except OpenAIError as e:
+    except (APIError, APIConnectionError, RateLimitError) as e:
         logging.error(f"OpenAI API error: {e}")
         return "NIL"  # Default to no match if API fails
     
