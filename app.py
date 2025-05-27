@@ -1,67 +1,59 @@
-from flask import Flask
-from dotenv import load_dotenv
 import os
 import logging
-import sentry_sdk
-from sentry_sdk.integrations.flask import FlaskIntegration
+from flask import Flask
+from database.schema import initialize_database
+from managers.user_manager_postgres import UserManager
 
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler()
-    ]
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 
-# Initialize Sentry for error tracking (if configured)
-sentry_dsn = os.getenv('SENTRY_DSN')
-if sentry_dsn:
-    sentry_sdk.init(
-        dsn=sentry_dsn,
-        integrations=[FlaskIntegration()],
-        traces_sample_rate=0.5,
-        environment=os.getenv('ENVIRONMENT', 'production')
-    )
-    logging.info("Sentry initialized for error tracking")
-
-# Load environment variables from .env file in development
-# In production (Render), environment variables are set in the dashboard
-if os.environ.get('RENDER') != 'true':
-    load_dotenv()
-    logging.info("Loaded environment variables from .env file")
-
-# Initialize Flask application
+# Create Flask app
 app = Flask(__name__)
 
-# Initialize user manager - this loads existing users from storage
-from managers.user_manager import UserManager
-storage_file = os.environ.get('USER_STORAGE_FILE', 'users.json')
-user_manager = UserManager(storage_file=storage_file)
+# Initialize database and user manager
+try:
+    # Initialize database schema
+    if not initialize_database():
+        raise Exception("Failed to initialize database")
+    
+    # Create user manager instance
+    user_manager = UserManager()
+    
+    logging.info("Application initialized successfully")
+    
+except Exception as e:
+    logging.error(f"Failed to initialize application: {e}")
+    raise
 
-# Register blueprints
-from routes.webhook_routes import webhook_bp
+# Import and register blueprints
 from routes.user_routes import user_bp
 from routes.website_routes import website_bp
+from routes.webhook_routes import webhook_bp
 
-app.register_blueprint(webhook_bp)
 app.register_blueprint(user_bp)
 app.register_blueprint(website_bp)
+app.register_blueprint(webhook_bp)
 
-# Set up webhook only in development or when explicitly requested
-if os.environ.get('SETUP_WEBHOOK', 'false').lower() == 'true':
-    from services.whatsapp_service import set_hook
-    set_hook()
-    logging.info("WhatsApp webhook set up")
+@app.route('/health', methods=['GET'])
+def health_check():
+    """Health check endpoint for monitoring"""
+    try:
+        # Test database connection
+        user_count = user_manager.get_user_count()
+        return {
+            'status': 'healthy',
+            'database': 'connected',
+            'users': user_count
+        }, 200
+    except Exception as e:
+        return {
+            'status': 'unhealthy',
+            'error': str(e)
+        }, 500
 
-# Application entry point
 if __name__ == '__main__':
-    # Determine port based on environment variables
-    port = int(os.environ.get('PORT', 8000))
-    debug = os.environ.get('DEBUG', 'false').lower() == 'true'
-    
-    # Log application startup
-    logging.info(f"Starting Recovery Manager on port {port} (debug={debug})")
-    
-    # Start the Flask application
-    app.run(host='0.0.0.0', port=port, debug=debug)
+    app.run(debug=False, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+
