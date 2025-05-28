@@ -8,23 +8,13 @@ user_bp = Blueprint('user', __name__)
 def api_add_user():
     """
     API endpoint to add a new user
-    
-    Request body:
-    {
-        "name": "User Name",
-        "number": "447123456789",
-        "location": "Manchester m80gw",
-        "range_miles": 50,
-        "stripe_customer_id": "cus_123456789",
-        "subscription_id": "sub_123456789"
-    }
-    
-    Returns:
-        JSON: Result of the operation
     """
     try:
-        # Import user_manager here to avoid circular imports
+        # Import user_manager from app module
         from app import user_manager
+        
+        if user_manager is None:
+            return jsonify({'status': 'error', 'message': 'Service not ready'}), 503
         
         data = request.json
         if not data:
@@ -66,16 +56,12 @@ def api_add_user():
 def api_get_users():
     """
     API endpoint to get all users
-    
-    Query parameters:
-    - active_only: Whether to return only active users (default: true)
-    
-    Returns:
-        JSON: List of all users
     """
     try:
-        # Import user_manager here to avoid circular imports
         from app import user_manager
+        
+        if user_manager is None:
+            return jsonify({'status': 'error', 'message': 'Service not ready'}), 503
         
         active_only = request.args.get('active_only', 'true').lower() == 'true'
         users = user_manager.get_users(active_only=active_only)
@@ -92,16 +78,12 @@ def api_get_users():
 def api_get_user(number):
     """
     API endpoint to get a specific user by WhatsApp number
-    
-    Args: 
-        number (str): WhatsApp number
-        
-    Returns:
-        JSON: User details or error
     """
     try:
-        # Import user_manager here to avoid circular imports
         from app import user_manager
+        
+        if user_manager is None:
+            return jsonify({'status': 'error', 'message': 'Service not ready'}), 503
         
         user = user_manager.get_user_by_number(number)
         if user:
@@ -118,23 +100,12 @@ def api_get_user(number):
 def api_update_user(number):
     """
     API endpoint to update a user
-    
-    Args: 
-        number (str): WhatsApp number
-        
-    Request body: Any user fields to update
-    {
-        "name": "Updated Name",
-        "location": "New Location",
-        "range_miles": 75
-    }
-    
-    Returns:
-        JSON: Updated user or error
     """
     try:
-        # Import user_manager here to avoid circular imports
         from app import user_manager
+        
+        if user_manager is None:
+            return jsonify({'status': 'error', 'message': 'Service not ready'}), 503
         
         data = request.json
         if not data:
@@ -156,19 +127,12 @@ def api_update_user(number):
 def api_delete_user(number):
     """
     API endpoint to delete a user
-    
-    Args: 
-        number (str): WhatsApp number
-        
-    Query parameters:
-    - soft: Whether to soft delete (deactivate) the user (default: true)
-        
-    Returns: 
-        JSON: Success message or error
     """
     try:
-        # Import user_manager here to avoid circular imports
         from app import user_manager
+        
+        if user_manager is None:
+            return jsonify({'status': 'error', 'message': 'Service not ready'}), 503
         
         soft_delete = request.args.get('soft', 'true').lower() == 'true'
         
