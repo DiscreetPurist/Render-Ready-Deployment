@@ -1,4 +1,3 @@
-
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for
 import os
 import logging
@@ -11,6 +10,11 @@ website_bp = Blueprint('website', __name__,
 
 # Initialize Stripe with API key from environment variables
 stripe.api_key = os.getenv('STRIPE_SECRET_KEY')
+
+@website_bp.route('/admin', methods=['GET'])
+def admin_dashboard():
+    """Admin dashboard page"""
+    return render_template('admin_dashboard.html')
 
 @website_bp.route('/website', methods=['GET'])
 def index():
@@ -454,3 +458,4 @@ def cancel_subscription():
     except Exception as e:
         logging.error(f"Subscription cancellation error: {e}")
         return jsonify({'status': 'error', 'message': 'Internal server error'}), 500
+

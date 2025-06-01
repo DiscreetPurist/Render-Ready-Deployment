@@ -46,10 +46,12 @@ if not initialize_app():
 from routes.user_routes import user_bp
 from routes.website_routes import website_bp
 from routes.webhook_routes import webhook_bp
+from routes.admin_routes import admin_bp  # Import admin routes
 
 app.register_blueprint(user_bp)
 app.register_blueprint(website_bp)
 app.register_blueprint(webhook_bp)
+app.register_blueprint(admin_bp)  # Register admin blueprint
 
 @app.route('/health', methods=['GET'])
 def health_check():
@@ -85,3 +87,4 @@ def root():
 
 if __name__ == '__main__':
     app.run(debug=False, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+

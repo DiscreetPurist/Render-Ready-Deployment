@@ -279,3 +279,4 @@ class UserManager:
             logging.error(f"Error getting user count: {e}")
             return 0
 
+
