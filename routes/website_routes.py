@@ -1,3 +1,4 @@
+
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for
 import os
 import logging
@@ -19,13 +20,20 @@ def index():
 @website_bp.route('/website/pricing', methods=['GET'])
 def pricing():
     """Pricing page"""
-    return render_template('pricing.html')
+    stripe_public_key = os.getenv('STRIPE_PUBLIC_KEY')
+    stripe_price_id = os.getenv('STRIPE_PRICE_ID')
+    return render_template('pricing.html', 
+                         stripe_public_key=stripe_public_key,
+                         stripe_price_id=stripe_price_id)
 
 @website_bp.route('/website/signup', methods=['GET'])
 def signup():
     """Signup page"""
     stripe_public_key = os.getenv('STRIPE_PUBLIC_KEY')
-    return render_template('signup.html', stripe_public_key=stripe_public_key)
+    stripe_price_id = os.getenv('STRIPE_PRICE_ID')
+    return render_template('signup.html', 
+                         stripe_public_key=stripe_public_key,
+                         stripe_price_id=stripe_price_id)
 
 @website_bp.route('/website/contact', methods=['GET'])
 def contact():
@@ -40,14 +48,13 @@ def thank_you():
 @website_bp.route('/create-subscription', methods=['POST'])
 def create_subscription():
     """
-    Handle subscription creation
-    1. Create or retrieve Stripe customer
-    2. Create subscription
-    3. Create user in our system
+    Handle subscription creation with improved error handling
     """
     try:
-        # Import user_manager here to avoid circular imports
         from app import user_manager
+        
+        if user_manager is None:
+            return jsonify({'status': 'error', 'message': 'Service not ready'}), 503
         
         data = request.json
         if not data:
@@ -59,24 +66,39 @@ def create_subscription():
         if not payment_method_id or not customer_data:
             return jsonify({'status': 'error', 'message': 'Missing required data'}), 400
         
+        # Validate required customer data
+        required_fields = ['name', 'email', 'phone', 'location', 'range']
+        for field in required_fields:
+            if not customer_data.get(field):
+                return jsonify({'status': 'error', 'message': f'Missing {field}'}), 400
+        
         # Validate Stripe configuration
         stripe_secret_key = os.getenv('STRIPE_SECRET_KEY')
         stripe_price_id = os.getenv('STRIPE_PRICE_ID')
         
         if not stripe_secret_key or not stripe_price_id:
             logging.error("Stripe configuration missing")
-            return jsonify({'status': 'error', 'message': 'Stripe configuration missing'}), 500
+            return jsonify({'status': 'error', 'message': 'Payment system not configured'}), 500
         
-        # Create or retrieve a customer in Stripe
+        # Create or retrieve customer
         try:
-            customers = stripe.Customer.list(email=customer_data['email'])
+            # Check if customer already exists
+            customers = stripe.Customer.list(
+                email=customer_data['email'],
+                limit=1
+            )
+            
             if customers.data:
                 customer = customers.data[0]
-                # Update customer with new payment method
+                logging.info(f"Found existing customer: {customer.id}")
+                
+                # Attach new payment method
                 stripe.PaymentMethod.attach(
                     payment_method_id,
                     customer=customer.id
                 )
+                
+                # Update default payment method
                 stripe.Customer.modify(
                     customer.id,
                     invoice_settings={
@@ -84,6 +106,7 @@ def create_subscription():
                     }
                 )
             else:
+                # Create new customer
                 customer = stripe.Customer.create(
                     email=customer_data['email'],
                     name=customer_data['name'],
@@ -91,80 +114,243 @@ def create_subscription():
                     payment_method=payment_method_id,
                     invoice_settings={
                         'default_payment_method': payment_method_id
+                    },
+                    metadata={
+                        'location': customer_data['location'],
+                        'range': str(customer_data['range'])
                     }
                 )
+                logging.info(f"Created new customer: {customer.id}")
+                
         except stripe.error.StripeError as e:
             logging.error(f"Stripe customer error: {e}")
-            return jsonify({'status': 'error', 'message': str(e)}), 400
+            return jsonify({'status': 'error', 'message': f'Customer creation failed: {str(e)}'}), 400
         
-        # Create the subscription
+        # Check for existing active subscription
+        try:
+            existing_subs = stripe.Subscription.list(
+                customer=customer.id,
+                status='active',
+                limit=1
+            )
+            
+            if existing_subs.data:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Customer already has an active subscription'
+                }), 400
+                
+        except stripe.error.StripeError as e:
+            logging.error(f"Error checking existing subscriptions: {e}")
+        
+        # Create the subscription - FIXED VERSION
         try:
             subscription = stripe.Subscription.create(
                 customer=customer.id,
-                items=[
-                    {
-                        'price': stripe_price_id  # Monthly subscription price ID
-                    }
-                ],
-                expand=['latest_invoice.payment_intent'],
+                items=[{
+                    'price': stripe_price_id
+                }],
                 payment_behavior='default_incomplete',
                 payment_settings={
                     'payment_method_types': ['card'],
                     'save_default_payment_method': 'on_subscription'
+                },
+                # Only expand latest_invoice, not payment_intent
+                expand=['latest_invoice'],
+                metadata={
+                    'location': customer_data['location'],
+                    'range': str(customer_data['range'])
                 }
             )
+            
+            logging.info(f"Created subscription: {subscription.id}")
+            
         except stripe.error.StripeError as e:
             logging.error(f"Stripe subscription error: {e}")
-            return jsonify({'status': 'error', 'message': str(e)}), 400
+            return jsonify({'status': 'error', 'message': f'Subscription creation failed: {str(e)}'}), 400
         
-        # Check if payment requires additional action
-        if subscription.latest_invoice.payment_intent.status == 'requires_action':
-            return jsonify({
-                'status': 'requires_action',
-                'clientSecret': subscription.latest_invoice.payment_intent.client_secret
-            })
-        
-        # If payment is successful, create user in our system
-        if subscription.status == 'active' or subscription.status == 'trialing':
-            # Add user to our system
-            user = user_manager.add_user(
-                name=customer_data['name'],
-                number=customer_data['phone'],
-                location=customer_data['location'],
-                range_miles=int(customer_data['range']),
-                stripe_customer_id=customer.id,
-                subscription_id=subscription.id
-            )
+        # Handle different subscription statuses
+        if subscription.status == 'active':
+            # Subscription is immediately active (no payment required or trial)
+            try:
+                user = user_manager.add_user(
+                    name=customer_data['name'],
+                    number=customer_data['phone'],
+                    location=customer_data['location'],
+                    range_miles=int(customer_data['range']),
+                    stripe_customer_id=customer.id,
+                    subscription_id=subscription.id
+                )
+                
+                logging.info(f"Created user: {user.name} ({user.number})")
+                
+                return jsonify({
+                    'status': 'success',
+                    'message': 'Subscription created successfully',
+                    'subscription_id': subscription.id,
+                    'customer_id': customer.id
+                })
+                
+            except Exception as e:
+                logging.error(f"Error creating user: {e}")
+                # Cancel the subscription if user creation fails
+                try:
+                    stripe.Subscription.delete(subscription.id)
+                except:
+                    pass
+                return jsonify({'status': 'error', 'message': 'User creation failed'}), 500
+                
+        elif subscription.status == 'incomplete':
+            # Payment is required
+            latest_invoice = subscription.latest_invoice
             
+            # Check if latest_invoice has payment_intent
+            if hasattr(latest_invoice, 'payment_intent') and latest_invoice.payment_intent:
+                payment_intent = latest_invoice.payment_intent
+                
+                if payment_intent.status == 'requires_action':
+                    return jsonify({
+                        'status': 'requires_action',
+                        'client_secret': payment_intent.client_secret,
+                        'subscription_id': subscription.id
+                    })
+                elif payment_intent.status == 'succeeded':
+                    # Payment succeeded, create user
+                    try:
+                        user = user_manager.add_user(
+                            name=customer_data['name'],
+                            number=customer_data['phone'],
+                            location=customer_data['location'],
+                            range_miles=int(customer_data['range']),
+                            stripe_customer_id=customer.id,
+                            subscription_id=subscription.id
+                        )
+                        
+                        logging.info(f"Created user: {user.name} ({user.number})")
+                        
+                        return jsonify({
+                            'status': 'success',
+                            'message': 'Subscription created successfully',
+                            'subscription_id': subscription.id,
+                            'customer_id': customer.id
+                        })
+                        
+                    except Exception as e:
+                        logging.error(f"Error creating user: {e}")
+                        try:
+                            stripe.Subscription.delete(subscription.id)
+                        except:
+                            pass
+                        return jsonify({'status': 'error', 'message': 'User creation failed'}), 500
+                else:
+                    return jsonify({
+                        'status': 'error',
+                        'message': f'Payment failed: {payment_intent.status}'
+                    }), 400
+            else:
+                # No payment_intent, might be a trial or free subscription
+                try:
+                    user = user_manager.add_user(
+                        name=customer_data['name'],
+                        number=customer_data['phone'],
+                        location=customer_data['location'],
+                        range_miles=int(customer_data['range']),
+                        stripe_customer_id=customer.id,
+                        subscription_id=subscription.id
+                    )
+                    
+                    logging.info(f"Created user: {user.name} ({user.number})")
+                    
+                    return jsonify({
+                        'status': 'success',
+                        'message': 'Subscription created successfully',
+                        'subscription_id': subscription.id,
+                        'customer_id': customer.id
+                    })
+                    
+                except Exception as e:
+                    logging.error(f"Error creating user: {e}")
+                    try:
+                        stripe.Subscription.delete(subscription.id)
+                    except:
+                        pass
+                    return jsonify({'status': 'error', 'message': 'User creation failed'}), 500
+        else:
             return jsonify({
-                'status': 'success',
-                'message': 'Subscription created successfully',
-                'subscription': subscription.id
-            })
+                'status': 'error',
+                'message': f'Subscription creation failed: {subscription.status}'
+            }), 400
         
-        return jsonify({
-            'status': 'error',
-            'message': f'Subscription creation failed: {subscription.status}'
-        })
-        
-    except stripe.error.StripeError as e:
-        logging.error(f"Stripe error: {e}")
-        return jsonify({'status': 'error', 'message': str(e)}), 400
     except Exception as e:
-        logging.error(f"Subscription error: {e}", exc_info=True)
-        return jsonify({'status': 'error', 'message': str(e)}), 500
+        logging.error(f"Subscription creation error: {e}", exc_info=True)
+        return jsonify({'status': 'error', 'message': 'Internal server error'}), 500
 
-@website_bp.route('/webhook', methods=['POST'])
-def webhook():
+@website_bp.route('/confirm-payment', methods=['POST'])
+def confirm_payment():
     """
-    Handle Stripe webhook events
-    - subscription.created: Log the creation
-    - invoice.paid: Ensure user is active
-    - customer.subscription.deleted: Deactivate user
+    Handle payment confirmation after 3D Secure authentication
     """
     try:
-        # Import user_manager here to avoid circular imports
         from app import user_manager
+        
+        data = request.json
+        payment_intent_id = data.get('payment_intent_id')
+        subscription_id = data.get('subscription_id')
+        customer_data = data.get('customerData')
+        
+        if not payment_intent_id or not subscription_id:
+            return jsonify({'status': 'error', 'message': 'Missing payment information'}), 400
+        
+        # Retrieve the payment intent to check status
+        payment_intent = stripe.PaymentIntent.retrieve(payment_intent_id)
+        
+        if payment_intent.status == 'succeeded':
+            # Retrieve subscription to get customer info
+            subscription = stripe.Subscription.retrieve(subscription_id)
+            customer = stripe.Customer.retrieve(subscription.customer)
+            
+            # Create user in our system
+            try:
+                user = user_manager.add_user(
+                    name=customer_data['name'],
+                    number=customer_data['phone'],
+                    location=customer_data['location'],
+                    range_miles=int(customer_data['range']),
+                    stripe_customer_id=customer.id,
+                    subscription_id=subscription.id
+                )
+                
+                logging.info(f"Created user after payment confirmation: {user.name}")
+                
+                return jsonify({
+                    'status': 'success',
+                    'message': 'Payment confirmed and subscription activated'
+                })
+                
+            except Exception as e:
+                logging.error(f"Error creating user after payment confirmation: {e}")
+                return jsonify({'status': 'error', 'message': 'User creation failed'}), 500
+        else:
+            return jsonify({
+                'status': 'error',
+                'message': f'Payment not completed: {payment_intent.status}'
+            }), 400
+            
+    except Exception as e:
+        logging.error(f"Payment confirmation error: {e}")
+        return jsonify({'status': 'error', 'message': 'Internal server error'}), 500
+
+@website_bp.route('/webhook', methods=['POST'])
+def stripe_webhook():
+    """
+    Handle Stripe webhook events with improved logging
+    """
+    try:
+        from app import user_manager
+        
+        if user_manager is None:
+            logging.error("User manager not initialized for webhook")
+            return jsonify({'status': 'error', 'message': 'Service not ready'}), 503
         
         payload = request.data
         sig_header = request.headers.get('Stripe-Signature')
@@ -172,33 +358,35 @@ def webhook():
         
         if not webhook_secret:
             logging.error("Stripe webhook secret not configured")
-            return jsonify({'status': 'error', 'message': 'Webhook secret not configured'}), 500
+            return jsonify({'status': 'error', 'message': 'Webhook not configured'}), 500
         
         try:
             event = stripe.Webhook.construct_event(
                 payload, sig_header, webhook_secret
             )
         except ValueError as e:
-            # Invalid payload
             logging.error(f"Invalid webhook payload: {e}")
             return jsonify({'status': 'error', 'message': 'Invalid payload'}), 400
         except stripe.error.SignatureVerificationError as e:
-            # Invalid signature
             logging.error(f"Invalid webhook signature: {e}")
             return jsonify({'status': 'error', 'message': 'Invalid signature'}), 400
         
         # Handle specific events
         event_type = event['type']
-        logging.info(f"Processing Stripe webhook event: {event_type}")
+        logging.info(f"Processing Stripe webhook: {event_type}")
         
-        if event_type == 'customer.subscription.deleted':
+        if event_type == 'customer.subscription.created':
+            subscription = event['data']['object']
+            customer_id = subscription['customer']
+            logging.info(f"Subscription created for customer: {customer_id}")
+            
+        elif event_type == 'customer.subscription.deleted':
             subscription = event['data']['object']
             customer_id = subscription['customer']
             
-            # Find the user by Stripe customer ID
+            # Find and deactivate user
             user = user_manager.get_user_by_stripe_customer_id(customer_id)
             if user:
-                # Deactivate the user
                 user_manager.deactivate_user(user.number)
                 logging.info(f"Deactivated user {user.name} due to subscription cancellation")
             else:
@@ -206,21 +394,63 @@ def webhook():
             
         elif event_type == 'invoice.paid':
             invoice = event['data']['object']
-            subscription_id = invoice['subscription']
             customer_id = invoice['customer']
             
-            # Find all users with this customer ID
-            users = [u for u in user_manager.get_users(active_only=False) 
-                    if u.stripe_customer_id == customer_id]
+            # Ensure user is active
+            user = user_manager.get_user_by_stripe_customer_id(customer_id)
+            if user and not getattr(user, 'active', True):
+                user_manager.update_user(user.number, active=True)
+                logging.info(f"Reactivated user {user.name} due to successful payment")
+                
+        elif event_type == 'invoice.payment_failed':
+            invoice = event['data']['object']
+            customer_id = invoice['customer']
             
-            for user in users:
-                # Ensure user is active
-                if not getattr(user, 'active', True):
-                    user_manager.update_user(user.number, active=True)
-                    logging.info(f"Reactivated user {user.name} due to invoice payment")
+            # Optionally deactivate user after failed payment
+            user = user_manager.get_user_by_stripe_customer_id(customer_id)
+            if user:
+                logging.warning(f"Payment failed for user {user.name}")
+                # You might want to send a notification or deactivate after multiple failures
         
         return jsonify({'status': 'success', 'message': f'Webhook processed: {event_type}'}), 200
     
     except Exception as e:
-        logging.error(f"Webhook error: {e}", exc_info=True)
+        logging.error(f"Webhook processing error: {e}", exc_info=True)
         return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@website_bp.route('/cancel-subscription', methods=['POST'])
+def cancel_subscription():
+    """
+    Allow users to cancel their subscription
+    """
+    try:
+        from app import user_manager
+        
+        data = request.json
+        phone_number = data.get('phone_number')
+        
+        if not phone_number:
+            return jsonify({'status': 'error', 'message': 'Phone number required'}), 400
+        
+        # Find user
+        user = user_manager.get_user_by_number(phone_number)
+        if not user or not user.subscription_id:
+            return jsonify({'status': 'error', 'message': 'Subscription not found'}), 404
+        
+        # Cancel subscription in Stripe
+        try:
+            subscription = stripe.Subscription.delete(user.subscription_id)
+            logging.info(f"Cancelled subscription {user.subscription_id} for user {user.name}")
+            
+            return jsonify({
+                'status': 'success',
+                'message': 'Subscription cancelled successfully'
+            })
+            
+        except stripe.error.StripeError as e:
+            logging.error(f"Error cancelling subscription: {e}")
+            return jsonify({'status': 'error', 'message': str(e)}), 400
+        
+    except Exception as e:
+        logging.error(f"Subscription cancellation error: {e}")
+        return jsonify({'status': 'error', 'message': 'Internal server error'}), 500
