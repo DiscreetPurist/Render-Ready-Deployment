@@ -253,7 +253,10 @@
                 </div>
                 <div style="text-align: right; margin-top: 20px;">
                     <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Save</button>
+                    <button type="submit" class="btn btn-primary" id="save-user-btn">
+                        <span id="save-btn-text">Save</span>
+                        <span id="save-btn-loading" style="display: none;">Saving...</span>
+                    </button>
                 </div>
             </form>
         </div>
@@ -492,6 +495,15 @@
         document.getElementById('user-form').addEventListener('submit', async function(e) {
             e.preventDefault();
             
+            // Show loading state
+            const saveBtn = document.getElementById('save-user-btn');
+            const saveBtnText = document.getElementById('save-btn-text');
+            const saveBtnLoading = document.getElementById('save-btn-loading');
+            
+            saveBtn.disabled = true;
+            saveBtnText.style.display = 'none';
+            saveBtnLoading.style.display = 'inline';
+            
             const formData = new FormData(e.target);
             const userData = {};
             
@@ -540,6 +552,11 @@
             } catch (error) {
                 console.error('Form submission error:', error);
                 showAlert('Error saving user', 'error');
+            } finally {
+                // Reset button state
+                saveBtn.disabled = false;
+                saveBtnText.style.display = 'inline';
+                saveBtnLoading.style.display = 'none';
             }
         });
         
