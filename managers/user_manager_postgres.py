@@ -11,32 +11,42 @@ class UserManager:
     def __init__(self):
         """Initialize user manager"""
         self.db_config = db_config
+        self._check_table_structure()
+    
+    def _check_table_structure(self):
+        """Check if the users table has the required columns"""
+        try:
+            with self.db_config.get_connection() as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute("""
+                        SELECT column_name 
+                        FROM information_schema.columns 
+                        WHERE table_name = 'users'
+                    """)
+                    columns = [row[0] for row in cursor.fetchall()]
+                    
+                    self.has_email = 'email' in columns
+                    self.has_password_hash = 'password_hash' in columns
+                    
+                    logging.info(f"UserManager initialized - Email column: {self.has_email}, Password column: {self.has_password_hash}")
+                    
+        except Exception as e:
+            logging.error(f"Error checking table structure: {e}")
+            self.has_email = False
+            self.has_password_hash = False
     
     def add_user(self, name, email, number, location, range_miles, 
                  password=None, stripe_customer_id=None, subscription_id=None):
         """
         Add a new user to the database
-        
-        Args:
-            name (str): User's name
-            email (str): User's email
-            number (str): WhatsApp number
-            location (str): User's location
-            range_miles (int): Range in miles
-            password (str, optional): Plain text password (will be hashed)
-            stripe_customer_id (str, optional): Stripe customer ID
-            subscription_id (str, optional): Stripe subscription ID
-            
-        Returns:
-            User: The created or updated user
         """
         try:
-            # Check if user already exists by email or number
-            existing_user = None
-            if email:
+            # Check if user already exists by number (always available)
+            existing_user = self.get_user_by_number(number)
+            
+            # Also check by email if email column exists and email is provided
+            if not existing_user and self.has_email and email:
                 existing_user = self.get_user_by_email(email)
-            if not existing_user:
-                existing_user = self.get_user_by_number(number)
             
             if existing_user:
                 # Update existing user
@@ -47,60 +57,76 @@ class UserManager:
                     'active': True
                 }
                 
-                # Update email if provided and different
-                if email and email != existing_user.email:
+                # Update email if column exists and email provided
+                if self.has_email and email and email != getattr(existing_user, 'email', None):
                     update_data['email'] = email
                 
                 if stripe_customer_id:
                     update_data['stripe_customer_id'] = stripe_customer_id
                 if subscription_id:
                     update_data['subscription_id'] = subscription_id
-                if password:
+                if password and self.has_password_hash:
                     # Update password
                     existing_user.set_password(password)
                     update_data['password_hash'] = existing_user.password_hash
                 
-                # Use email if available, otherwise use number for update
-                if existing_user.email:
-                    return self.update_user_by_email(existing_user.email, **update_data)
-                else:
-                    return self.update_user(existing_user.number, **update_data)
+                return self.update_user(existing_user.number, **update_data)
             
             # Create new user
             user_id = str(uuid.uuid4())
             now = datetime.utcnow().isoformat()
             
-            # Create user object to hash password
-            user = User(
-                user_id=user_id,
-                name=name,
-                email=email or f"user_{user_id}@temp.local",  # Temporary email if none provided
-                number=number,
-                location=location,
-                range_miles=range_miles,
-                stripe_customer_id=stripe_customer_id,
-                subscription_id=subscription_id,
-                active=True,
-                created_at=now,
-                updated_at=now
-            )
+            # Build insert query based on available columns
+            columns = ['user_id', 'name', 'number', 'location', 'range_miles', 'active', 'created_at', 'updated_at']
+            values = [user_id, name, number, location, range_miles, True, now, now]
+            placeholders = ['%s'] * len(values)
             
-            if password:
-                user.set_password(password)
+            # Add email if column exists
+            if self.has_email:
+                columns.append('email')
+                values.append(email or f"user_{user_id}@temp.local")
+                placeholders.append('%s')
+            
+            # Add password if column exists and password provided
+            if self.has_password_hash:
+                user = User(
+                    user_id=user_id,
+                    name=name,
+                    email=email or f"user_{user_id}@temp.local",
+                    number=number,
+                    location=location,
+                    range_miles=range_miles,
+                    active=True,
+                    created_at=now,
+                    updated_at=now
+                )
+                
+                if password:
+                    user.set_password(password)
+                
+                columns.append('password_hash')
+                values.append(user.password_hash)
+                placeholders.append('%s')
+            
+            # Add Stripe fields if provided
+            if stripe_customer_id:
+                columns.append('stripe_customer_id')
+                values.append(stripe_customer_id)
+                placeholders.append('%s')
+            
+            if subscription_id:
+                columns.append('subscription_id')
+                values.append(subscription_id)
+                placeholders.append('%s')
             
             with self.db_config.get_connection() as conn:
                 with conn.cursor() as cursor:
-                    cursor.execute("""
-                        INSERT INTO users (
-                            user_id, name, email, password_hash, number, location, range_miles, 
-                            stripe_customer_id, subscription_id, active, created_at, updated_at
-                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    query = f"""
+                        INSERT INTO users ({', '.join(columns)})
+                        VALUES ({', '.join(placeholders)})
                         RETURNING *;
-                    """, (
-                        user.user_id, user.name, user.email, user.password_hash, user.number, 
-                        user.location, user.range_miles, user.stripe_customer_id, 
-                        user.subscription_id, user.active, user.created_at, user.updated_at
-                    ))
+                    """
+                    cursor.execute(query, values)
                     
                     row = cursor.fetchone()
                     conn.commit()
@@ -109,20 +135,32 @@ class UserManager:
                     user_data = {
                         'user_id': row[0],
                         'name': row[1],
-                        'email': row[2],
-                        'password_hash': row[3],
-                        'number': row[4],
-                        'location': row[5],
-                        'range_miles': row[6],
-                        'stripe_customer_id': row[7],
-                        'subscription_id': row[8],
-                        'active': row[9],
-                        'created_at': row[10].isoformat() if row[10] else now,
-                        'updated_at': row[11].isoformat() if row[11] else now
+                        'number': row[2] if not self.has_email else row[4],  # Adjust for email column
+                        'location': row[3] if not self.has_email else row[5],
+                        'range_miles': row[4] if not self.has_email else row[6],
+                        'active': row[7] if not self.has_email else row[9],
+                        'created_at': (row[8] if not self.has_email else row[10]).isoformat() if (row[8] if not self.has_email else row[10]) else now,
+                        'updated_at': (row[9] if not self.has_email else row[11]).isoformat() if (row[9] if not self.has_email else row[11]) else now
                     }
                     
+                    # Add email and password_hash if columns exist
+                    if self.has_email:
+                        user_data['email'] = row[2]
+                    else:
+                        user_data['email'] = email or f"user_{user_id}@temp.local"
+                    
+                    if self.has_password_hash:
+                        user_data['password_hash'] = row[3] if not self.has_email else row[7]
+                    
+                    # Add Stripe fields
+                    stripe_customer_idx = len(row) - 2 if subscription_id else len(row) - 1 if stripe_customer_id else None
+                    subscription_idx = len(row) - 1 if subscription_id else None
+                    
+                    user_data['stripe_customer_id'] = row[stripe_customer_idx] if stripe_customer_idx else stripe_customer_id
+                    user_data['subscription_id'] = row[subscription_idx] if subscription_idx else subscription_id
+                    
                     created_user = User.from_dict(user_data)
-                    logging.info(f"Added user: {created_user.name} ({created_user.email})")
+                    logging.info(f"Added user: {created_user.name} ({getattr(created_user, 'email', 'no-email')})")
                     return created_user
                     
         except Exception as e:
@@ -130,16 +168,8 @@ class UserManager:
             raise
     
     def get_user_by_email(self, email):
-        """
-        Get user by email address
-        
-        Args:
-            email (str): Email address
-            
-        Returns:
-            User: User object if found, None otherwise
-        """
-        if not email:
+        """Get user by email address (only if email column exists)"""
+        if not self.has_email or not email:
             return None
             
         try:
@@ -165,16 +195,11 @@ class UserManager:
             return None
     
     def authenticate_user(self, email, password):
-        """
-        Authenticate user with email and password
-        
-        Args:
-            email (str): Email address
-            password (str): Plain text password
+        """Authenticate user with email and password (only if both columns exist)"""
+        if not self.has_email or not self.has_password_hash:
+            logging.warning("Authentication not available - missing email or password columns")
+            return None
             
-        Returns:
-            User: User object if authentication successful, None otherwise
-        """
         try:
             user = self.get_user_by_email(email)
             if user and user.check_password(password):
@@ -185,17 +210,8 @@ class UserManager:
             return None
     
     def update_user_by_email(self, email, **kwargs):
-        """
-        Update user by email address
-        
-        Args:
-            email (str): Email address of user to update
-            **kwargs: Fields to update
-            
-        Returns:
-            User: Updated user object if found, None otherwise
-        """
-        if not email:
+        """Update user by email address (only if email column exists)"""
+        if not self.has_email or not email:
             return None
             
         try:
@@ -203,9 +219,13 @@ class UserManager:
             set_clauses = []
             values = []
             
-            # Valid fields that can be updated
-            valid_fields = ['name', 'email', 'location', 'range_miles', 'stripe_customer_id', 
-                          'subscription_id', 'active', 'password_hash']
+            # Valid fields that can be updated (check if columns exist)
+            valid_fields = ['name', 'location', 'range_miles', 'stripe_customer_id', 'subscription_id', 'active']
+            
+            if self.has_email:
+                valid_fields.append('email')
+            if self.has_password_hash:
+                valid_fields.append('password_hash')
             
             for key, value in kwargs.items():
                 if key in valid_fields:
@@ -236,15 +256,7 @@ class UserManager:
             return None
     
     def get_users(self, active_only=True):
-        """
-        Get all users from database
-        
-        Args:
-            active_only (bool): Whether to return only active users
-            
-        Returns:
-            list: List of User objects
-        """
+        """Get all users from database"""
         try:
             with self.db_config.get_connection() as conn:
                 with conn.cursor(cursor_factory=RealDictCursor) as cursor:
@@ -264,6 +276,14 @@ class UserManager:
                         if user_data.get('updated_at'):
                             user_data['updated_at'] = user_data['updated_at'].isoformat()
                         
+                        # Add default email if column doesn't exist
+                        if not self.has_email:
+                            user_data['email'] = f"user_{user_data.get('user_id', 'unknown')}@temp.local"
+                        
+                        # Add default password_hash if column doesn't exist
+                        if not self.has_password_hash:
+                            user_data['password_hash'] = None
+                        
                         users.append(User.from_dict(user_data))
                     
                     return users
@@ -273,15 +293,7 @@ class UserManager:
             return []
     
     def get_user_by_number(self, number):
-        """
-        Get user by phone number
-        
-        Args:
-            number (str): WhatsApp number
-            
-        Returns:
-            User: User object if found, None otherwise
-        """
+        """Get user by phone number"""
         try:
             with self.db_config.get_connection() as conn:
                 with conn.cursor(cursor_factory=RealDictCursor) as cursor:
@@ -296,6 +308,14 @@ class UserManager:
                         if user_data.get('updated_at'):
                             user_data['updated_at'] = user_data['updated_at'].isoformat()
                         
+                        # Add default email if column doesn't exist
+                        if not self.has_email:
+                            user_data['email'] = f"user_{user_data.get('user_id', 'unknown')}@temp.local"
+                        
+                        # Add default password_hash if column doesn't exist
+                        if not self.has_password_hash:
+                            user_data['password_hash'] = None
+                        
                         return User.from_dict(user_data)
                     
                     return None
@@ -305,15 +325,7 @@ class UserManager:
             return None
     
     def get_user_by_stripe_customer_id(self, stripe_customer_id):
-        """
-        Get user by Stripe customer ID
-        
-        Args:
-            stripe_customer_id (str): Stripe customer ID
-            
-        Returns:
-            User: User object if found, None otherwise
-        """
+        """Get user by Stripe customer ID"""
         try:
             with self.db_config.get_connection() as conn:
                 with conn.cursor(cursor_factory=RealDictCursor) as cursor:
@@ -329,6 +341,14 @@ class UserManager:
                         if user_data.get('updated_at'):
                             user_data['updated_at'] = user_data['updated_at'].isoformat()
                         
+                        # Add default email if column doesn't exist
+                        if not self.has_email:
+                            user_data['email'] = f"user_{user_data.get('user_id', 'unknown')}@temp.local"
+                        
+                        # Add default password_hash if column doesn't exist
+                        if not self.has_password_hash:
+                            user_data['password_hash'] = None
+                        
                         return User.from_dict(user_data)
                     
                     return None
@@ -338,24 +358,19 @@ class UserManager:
             return None
     
     def update_user(self, number, **kwargs):
-        """
-        Update user in database by phone number
-        
-        Args:
-            number (str): WhatsApp number of user to update
-            **kwargs: Fields to update
-            
-        Returns:
-            User: Updated user object if found, None otherwise
-        """
+        """Update user in database by phone number"""
         try:
             # Build dynamic update query
             set_clauses = []
             values = []
             
-            # Valid fields that can be updated
-            valid_fields = ['name', 'email', 'location', 'range_miles', 'stripe_customer_id', 
-                          'subscription_id', 'active', 'password_hash']
+            # Valid fields that can be updated (check if columns exist)
+            valid_fields = ['name', 'location', 'range_miles', 'stripe_customer_id', 'subscription_id', 'active']
+            
+            if self.has_email:
+                valid_fields.append('email')
+            if self.has_password_hash:
+                valid_fields.append('password_hash')
             
             for key, value in kwargs.items():
                 if key in valid_fields:
@@ -386,28 +401,12 @@ class UserManager:
             return None
     
     def deactivate_user(self, number):
-        """
-        Deactivate user (soft delete)
-        
-        Args:
-            number (str): WhatsApp number
-            
-        Returns:
-            bool: True if successful, False otherwise
-        """
+        """Deactivate user (soft delete)"""
         result = self.update_user(number, active=False)
         return result is not None
     
     def delete_user(self, number):
-        """
-        Hard delete user from database
-        
-        Args:
-            number (str): WhatsApp number
-            
-        Returns:
-            bool: True if successful, False otherwise
-        """
+        """Hard delete user from database"""
         try:
             with self.db_config.get_connection() as conn:
                 with conn.cursor() as cursor:
@@ -429,5 +428,3 @@ class UserManager:
         except Exception as e:
             logging.error(f"Error getting user count: {e}")
             return 0
-
-

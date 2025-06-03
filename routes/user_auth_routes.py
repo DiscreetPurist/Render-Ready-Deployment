@@ -14,6 +14,36 @@ def require_user_auth(f):
         return f(*args, **kwargs)
     return decorated_function
 
+@user_auth_bp.route('/api/user/auth-status', methods=['GET'])
+def auth_status():
+    """Check if authentication is available"""
+    try:
+        from app import user_manager
+        
+        if user_manager is None:
+            return jsonify({
+                'status': 'error', 
+                'message': 'Service not ready',
+                'auth_available': False
+            }), 503
+        
+        auth_available = getattr(user_manager, 'has_email', False) and getattr(user_manager, 'has_password_hash', False)
+        
+        return jsonify({
+            'status': 'success',
+            'auth_available': auth_available,
+            'has_email': getattr(user_manager, 'has_email', False),
+            'has_password_hash': getattr(user_manager, 'has_password_hash', False)
+        }), 200
+        
+    except Exception as e:
+        logging.error(f"Auth status check error: {e}")
+        return jsonify({
+            'status': 'error', 
+            'message': 'Internal server error',
+            'auth_available': False
+        }), 500
+
 @user_auth_bp.route('/api/user/login', methods=['POST'])
 def user_login():
     """User login endpoint"""
@@ -22,6 +52,13 @@ def user_login():
         
         if user_manager is None:
             return jsonify({'status': 'error', 'message': 'Service not ready'}), 503
+        
+        # Check if authentication is available
+        if not getattr(user_manager, 'has_email', False) or not getattr(user_manager, 'has_password_hash', False):
+            return jsonify({
+                'status': 'error', 
+                'message': 'Authentication not available. Database needs to be migrated.'
+            }), 503
         
         data = request.json
         if not data:
@@ -74,6 +111,10 @@ def verify_user_session():
         
         if 'user_email' not in session:
             return jsonify({'status': 'error', 'message': 'Not authenticated'}), 401
+        
+        # Check if authentication is available
+        if not getattr(user_manager, 'has_email', False) or not getattr(user_manager, 'has_password_hash', False):
+            return jsonify({'status': 'error', 'message': 'Authentication not available'}), 503
         
         # Get current user data
         user = user_manager.get_user_by_email(session['user_email'])
@@ -161,6 +202,10 @@ def change_password():
     try:
         from app import user_manager
         
+        # Check if password functionality is available
+        if not getattr(user_manager, 'has_password_hash', False):
+            return jsonify({'status': 'error', 'message': 'Password functionality not available'}), 503
+        
         data = request.json
         if not data:
             return jsonify({'status': 'error', 'message': 'No data provided'}), 400
@@ -220,9 +265,10 @@ def deactivate_account():
         if not user:
             return jsonify({'status': 'error', 'message': 'User not found'}), 404
         
-        # Verify password
-        if not user.check_password(password):
-            return jsonify({'status': 'error', 'message': 'Incorrect password'}), 401
+        # Verify password (only if password functionality is available)
+        if getattr(user_manager, 'has_password_hash', False):
+            if not user.check_password(password):
+                return jsonify({'status': 'error', 'message': 'Incorrect password'}), 401
         
         # Cancel Stripe subscription if exists
         if user.subscription_id:
