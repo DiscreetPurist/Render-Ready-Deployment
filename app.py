@@ -49,24 +49,54 @@ if not initialize_app():
     logging.error("Application startup failed")
     # Don't exit in production, let health check handle it
 
-# Import and register blueprints
-from routes.user_routes import user_bp
-from routes.website_routes import website_bp
-from routes.webhook_routes import webhook_bp
-from routes.admin_routes import admin_bp
-from routes.debug_routes import debug_bp
-from routes.backup_routes import backup_bp
-from routes.wordpress_routes import wordpress_bp  # Import WordPress routes
-from routes.auth_routes import auth_bp
+# Import and register blueprints with error handling
+try:
+    from routes.user_routes import user_bp
+    app.register_blueprint(user_bp)
+except ImportError as e:
+    logging.error(f"Failed to import user_routes: {e}")
 
-app.register_blueprint(user_bp)
-app.register_blueprint(website_bp)
-app.register_blueprint(webhook_bp)
-app.register_blueprint(admin_bp)
-app.register_blueprint(debug_bp)
-app.register_blueprint(backup_bp)
-app.register_blueprint(wordpress_bp)  # Register WordPress blueprint
-app.register_blueprint(auth_bp)
+try:
+    from routes.website_routes import website_bp
+    app.register_blueprint(website_bp)
+except ImportError as e:
+    logging.error(f"Failed to import website_routes: {e}")
+
+try:
+    from routes.webhook_routes import webhook_bp
+    app.register_blueprint(webhook_bp)
+except ImportError as e:
+    logging.error(f"Failed to import webhook_routes: {e}")
+
+try:
+    from routes.admin_routes import admin_bp
+    app.register_blueprint(admin_bp)
+except ImportError as e:
+    logging.error(f"Failed to import admin_routes: {e}")
+
+try:
+    from routes.debug_routes import debug_bp
+    app.register_blueprint(debug_bp)
+except ImportError as e:
+    logging.error(f"Failed to import debug_routes: {e}")
+
+try:
+    from routes.backup_routes import backup_bp
+    app.register_blueprint(backup_bp)
+except ImportError as e:
+    logging.error(f"Failed to import backup_routes: {e}")
+
+try:
+    from routes.wordpress_routes import wordpress_bp
+    app.register_blueprint(wordpress_bp)
+except ImportError as e:
+    logging.error(f"Failed to import wordpress_routes: {e}")
+
+try:
+    from routes.auth_routes import auth_bp
+    app.register_blueprint(auth_bp)
+except ImportError as e:
+    logging.error(f"Failed to import auth_routes: {e}")
 
 @app.route('/health', methods=['GET'])
 def health_check():
@@ -102,5 +132,3 @@ def root():
 
 if __name__ == '__main__':
     app.run(debug=False, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
-
-
