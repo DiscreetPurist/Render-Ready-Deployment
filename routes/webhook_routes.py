@@ -84,3 +84,51 @@ def stripe_webhook():
         logging.error(f"Webhook processing error: {e}", exc_info=True)
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
+@webhook_bp.route('/hook/messages', methods=['POST'])
+def receive_messages():
+    """
+    Handle incoming group messages
+    """
+    try:
+        # Get the JSON data from the request
+        data = request.get_json()
+        
+        if not data:
+            logging.warning("Received empty message data")
+            return jsonify({'status': 'error', 'message': 'No data provided'}), 400
+        
+        # Log the incoming message for debugging
+        logging.info(f"Received group message: {data}")
+        
+        # Extract message information
+        message_type = data.get('type', 'unknown')
+        message_content = data.get('content', '')
+        sender = data.get('sender', 'unknown')
+        timestamp = data.get('timestamp')
+        
+        # Process the message based on type
+        if message_type == 'text':
+            logging.info(f"Text message from {sender}: {message_content}")
+        elif message_type == 'image':
+            logging.info(f"Image message from {sender}")
+        elif message_type == 'location':
+            logging.info(f"Location message from {sender}")
+        else:
+            logging.info(f"Unknown message type '{message_type}' from {sender}")
+        
+        # Here you can add your specific message processing logic
+        # For example:
+        # - Store the message in database
+        # - Forward to specific users
+        # - Trigger notifications
+        # - Process commands
+        
+        return jsonify({
+            'status': 'success', 
+            'message': 'Message received and processed',
+            'received_type': message_type
+        }), 200
+    
+    except Exception as e:
+        logging.error(f"Error processing group message: {e}", exc_info=True)
+        return jsonify({'status': 'error', 'message': str(e)}), 500
