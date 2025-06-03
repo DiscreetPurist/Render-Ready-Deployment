@@ -175,9 +175,11 @@ def create_subscription():
             try:
                 user = user_manager.add_user(
                     name=customer_data['name'],
+                    email=customer_data['email'],
                     number=customer_data['phone'],
                     location=customer_data['location'],
                     range_miles=int(customer_data['range']),
+                    password=customer_data.get('password'),  # Add password field
                     stripe_customer_id=customer.id,
                     subscription_id=subscription.id
                 )
@@ -219,9 +221,11 @@ def create_subscription():
                     try:
                         user = user_manager.add_user(
                             name=customer_data['name'],
+                            email=customer_data['email'],
                             number=customer_data['phone'],
                             location=customer_data['location'],
                             range_miles=int(customer_data['range']),
+                            password=customer_data.get('password'),  # Add password field
                             stripe_customer_id=customer.id,
                             subscription_id=subscription.id
                         )
@@ -252,9 +256,11 @@ def create_subscription():
                 try:
                     user = user_manager.add_user(
                         name=customer_data['name'],
+                        email=customer_data['email'],
                         number=customer_data['phone'],
                         location=customer_data['location'],
                         range_miles=int(customer_data['range']),
+                        password=customer_data.get('password'),  # Add password field
                         stripe_customer_id=customer.id,
                         subscription_id=subscription.id
                     )
@@ -313,9 +319,11 @@ def confirm_payment():
             try:
                 user = user_manager.add_user(
                     name=customer_data['name'],
+                    email=customer_data['email'],
                     number=customer_data['phone'],
                     location=customer_data['location'],
                     range_miles=int(customer_data['range']),
+                    password=customer_data.get('password'),  # Add password field
                     stripe_customer_id=customer.id,
                     subscription_id=subscription.id
                 )
@@ -460,6 +468,4 @@ def cancel_subscription():
 def admin_dashboard():
     """Admin dashboard page - protected by authentication"""
     return render_template('admin_dashboard.html')
-
-
 

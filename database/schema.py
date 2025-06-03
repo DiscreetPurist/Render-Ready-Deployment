@@ -4,11 +4,13 @@ from config.database import db_config
 def create_tables():
     """Create all necessary database tables"""
     
-    # Users table with all required fields
+    # Users table with email and password fields added
     create_users_table = """
     CREATE TABLE IF NOT EXISTS users (
         user_id VARCHAR(36) PRIMARY KEY,
         name VARCHAR(255) NOT NULL,
+        email VARCHAR(255) UNIQUE NOT NULL,
+        password_hash VARCHAR(255) NOT NULL,
         number VARCHAR(20) UNIQUE NOT NULL,
         location VARCHAR(255) NOT NULL,
         range_miles INTEGER NOT NULL,
@@ -22,6 +24,7 @@ def create_tables():
     
     # Index for faster lookups
     create_indexes = [
+        "CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);",
         "CREATE INDEX IF NOT EXISTS idx_users_number ON users(number);",
         "CREATE INDEX IF NOT EXISTS idx_users_stripe_customer ON users(stripe_customer_id);",
         "CREATE INDEX IF NOT EXISTS idx_users_active ON users(active);",

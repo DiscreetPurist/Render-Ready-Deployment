@@ -12,16 +12,18 @@ class UserManager:
         """Initialize user manager"""
         self.db_config = db_config
     
-    def add_user(self, name, number, location, range_miles, 
-                 stripe_customer_id=None, subscription_id=None):
+    def add_user(self, name, email, number, location, range_miles, 
+                 password=None, stripe_customer_id=None, subscription_id=None):
         """
         Add a new user to the database
         
         Args:
             name (str): User's name
+            email (str): User's email
             number (str): WhatsApp number
             location (str): User's location
             range_miles (int): Range in miles
+            password (str, optional): Plain text password (will be hashed)
             stripe_customer_id (str, optional): Stripe customer ID
             subscription_id (str, optional): Stripe subscription ID
             
@@ -29,34 +31,65 @@ class UserManager:
             User: The created or updated user
         """
         try:
-            # Check if user already exists
-            existing_user = self.get_user_by_number(number)
+            # Check if user already exists by email or number
+            existing_user = self.get_user_by_email(email)
+            if not existing_user:
+                existing_user = self.get_user_by_number(number)
+            
             if existing_user:
                 # Update existing user
-                return self.update_user(number, 
-                    name=name, 
-                    location=location, 
-                    range_miles=range_miles,
-                    stripe_customer_id=stripe_customer_id or existing_user.stripe_customer_id,
-                    subscription_id=subscription_id or existing_user.subscription_id,
-                    active=True
-                )
+                update_data = {
+                    'name': name,
+                    'location': location,
+                    'range_miles': range_miles,
+                    'active': True
+                }
+                
+                if stripe_customer_id:
+                    update_data['stripe_customer_id'] = stripe_customer_id
+                if subscription_id:
+                    update_data['subscription_id'] = subscription_id
+                if password:
+                    # Update password
+                    existing_user.set_password(password)
+                    update_data['password_hash'] = existing_user.password_hash
+                
+                return self.update_user_by_email(email, **update_data)
             
             # Create new user
             user_id = str(uuid.uuid4())
             now = datetime.utcnow().isoformat()
             
+            # Create user object to hash password
+            user = User(
+                user_id=user_id,
+                name=name,
+                email=email,
+                number=number,
+                location=location,
+                range_miles=range_miles,
+                stripe_customer_id=stripe_customer_id,
+                subscription_id=subscription_id,
+                active=True,
+                created_at=now,
+                updated_at=now
+            )
+            
+            if password:
+                user.set_password(password)
+            
             with self.db_config.get_connection() as conn:
                 with conn.cursor() as cursor:
                     cursor.execute("""
                         INSERT INTO users (
-                            user_id, name, number, location, range_miles, 
+                            user_id, name, email, password_hash, number, location, range_miles, 
                             stripe_customer_id, subscription_id, active, created_at, updated_at
-                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         RETURNING *;
                     """, (
-                        user_id, name, number, location, range_miles,
-                        stripe_customer_id, subscription_id, True, now, now
+                        user.user_id, user.name, user.email, user.password_hash, user.number, 
+                        user.location, user.range_miles, user.stripe_customer_id, 
+                        user.subscription_id, user.active, user.created_at, user.updated_at
                     ))
                     
                     row = cursor.fetchone()
@@ -66,23 +99,125 @@ class UserManager:
                     user_data = {
                         'user_id': row[0],
                         'name': row[1],
-                        'number': row[2],
-                        'location': row[3],
-                        'range_miles': row[4],
-                        'stripe_customer_id': row[5],
-                        'subscription_id': row[6],
-                        'active': row[7],
-                        'created_at': row[8].isoformat() if row[8] else now,
-                        'updated_at': row[9].isoformat() if row[9] else now
+                        'email': row[2],
+                        'password_hash': row[3],
+                        'number': row[4],
+                        'location': row[5],
+                        'range_miles': row[6],
+                        'stripe_customer_id': row[7],
+                        'subscription_id': row[8],
+                        'active': row[9],
+                        'created_at': row[10].isoformat() if row[10] else now,
+                        'updated_at': row[11].isoformat() if row[11] else now
                     }
                     
-                    user = User.from_dict(user_data)
-                    logging.info(f"Added user: {user.name} ({user.number})")
-                    return user
+                    created_user = User.from_dict(user_data)
+                    logging.info(f"Added user: {created_user.name} ({created_user.email})")
+                    return created_user
                     
         except Exception as e:
             logging.error(f"Error adding user: {e}")
             raise
+    
+    def get_user_by_email(self, email):
+        """
+        Get user by email address
+        
+        Args:
+            email (str): Email address
+            
+        Returns:
+            User: User object if found, None otherwise
+        """
+        try:
+            with self.db_config.get_connection() as conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+                    cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
+                    row = cursor.fetchone()
+                    
+                    if row:
+                        user_data = dict(row)
+                        # Convert timestamps to ISO format
+                        if user_data.get('created_at'):
+                            user_data['created_at'] = user_data['created_at'].isoformat()
+                        if user_data.get('updated_at'):
+                            user_data['updated_at'] = user_data['updated_at'].isoformat()
+                        
+                        return User.from_dict(user_data)
+                    
+                    return None
+                    
+        except Exception as e:
+            logging.error(f"Error getting user by email: {e}")
+            return None
+    
+    def authenticate_user(self, email, password):
+        """
+        Authenticate user with email and password
+        
+        Args:
+            email (str): Email address
+            password (str): Plain text password
+            
+        Returns:
+            User: User object if authentication successful, None otherwise
+        """
+        try:
+            user = self.get_user_by_email(email)
+            if user and user.check_password(password):
+                return user
+            return None
+        except Exception as e:
+            logging.error(f"Error authenticating user: {e}")
+            return None
+    
+    def update_user_by_email(self, email, **kwargs):
+        """
+        Update user by email address
+        
+        Args:
+            email (str): Email address of user to update
+            **kwargs: Fields to update
+            
+        Returns:
+            User: Updated user object if found, None otherwise
+        """
+        try:
+            # Build dynamic update query
+            set_clauses = []
+            values = []
+            
+            # Valid fields that can be updated
+            valid_fields = ['name', 'location', 'range_miles', 'stripe_customer_id', 
+                          'subscription_id', 'active', 'password_hash']
+            
+            for key, value in kwargs.items():
+                if key in valid_fields:
+                    set_clauses.append(f"{key} = %s")
+                    values.append(value)
+            
+            if not set_clauses:
+                return self.get_user_by_email(email)
+            
+            # Add updated_at
+            set_clauses.append("updated_at = %s")
+            values.append(datetime.utcnow())
+            values.append(email)  # For WHERE clause
+            
+            with self.db_config.get_connection() as conn:
+                with conn.cursor() as cursor:
+                    query = f"UPDATE users SET {', '.join(set_clauses)} WHERE email = %s"
+                    cursor.execute(query, values)
+                    conn.commit()
+                    
+                    if cursor.rowcount > 0:
+                        return self.get_user_by_email(email)
+            
+            return None
+            
+        except Exception as e:
+            logging.error(f"Error updating user by email: {e}")
+            return None
     
     def get_users(self, active_only=True):
         """
@@ -188,7 +323,7 @@ class UserManager:
     
     def update_user(self, number, **kwargs):
         """
-        Update user in database
+        Update user in database by phone number
         
         Args:
             number (str): WhatsApp number of user to update
@@ -203,8 +338,8 @@ class UserManager:
             values = []
             
             # Valid fields that can be updated
-            valid_fields = ['name', 'location', 'range_miles', 'stripe_customer_id', 
-                          'subscription_id', 'active']
+            valid_fields = ['name', 'email', 'location', 'range_miles', 'stripe_customer_id', 
+                          'subscription_id', 'active', 'password_hash']
             
             for key, value in kwargs.items():
                 if key in valid_fields:
@@ -278,5 +413,6 @@ class UserManager:
         except Exception as e:
             logging.error(f"Error getting user count: {e}")
             return 0
+
 
 

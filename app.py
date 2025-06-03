@@ -80,6 +80,19 @@ try:
 except ImportError as e:
     logging.error(f"Failed to import auth_routes: {e}")
 
+# Add these imports with the other route imports:
+try:
+    from routes.user_auth_routes import user_auth_bp
+    app.register_blueprint(user_auth_bp)
+except ImportError as e:
+    logging.error(f"Failed to import user_auth_routes: {e}")
+
+try:
+    from routes.user_dashboard_routes import user_dashboard_bp
+    app.register_blueprint(user_dashboard_bp)
+except ImportError as e:
+    logging.error(f"Failed to import user_dashboard_routes: {e}")
+
 # Optional routes (can be removed if not needed)
 try:
     from routes.debug_routes import debug_bp

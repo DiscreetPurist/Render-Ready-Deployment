@@ -1,14 +1,17 @@
 import uuid
+import bcrypt
 from datetime import datetime
 
 class User:
     """User model for the Recovery Manager application"""
     
-    def __init__(self, name, number, location, range_miles, 
-                 stripe_customer_id=None, subscription_id=None, 
+    def __init__(self, name, email, number, location, range_miles, 
+                 password_hash=None, stripe_customer_id=None, subscription_id=None, 
                  user_id=None, active=True, created_at=None, updated_at=None):
         self.user_id = user_id or str(uuid.uuid4())
         self.name = name
+        self.email = email
+        self.password_hash = password_hash
         self.number = number
         self.location = location
         self.range_miles = range_miles
@@ -18,11 +21,24 @@ class User:
         self.created_at = created_at or datetime.utcnow().isoformat()
         self.updated_at = updated_at or datetime.utcnow().isoformat()
     
-    def to_dict(self):
+    def set_password(self, password):
+        """Hash and set password"""
+        if password:
+            salt = bcrypt.gensalt()
+            self.password_hash = bcrypt.hashpw(password.encode('utf-8'), salt).decode('utf-8')
+    
+    def check_password(self, password):
+        """Check if provided password matches stored hash"""
+        if not self.password_hash or not password:
+            return False
+        return bcrypt.checkpw(password.encode('utf-8'), self.password_hash.encode('utf-8'))
+    
+    def to_dict(self, include_sensitive=False):
         """Convert user object to dictionary"""
-        return {
+        data = {
             'user_id': self.user_id,
             'name': self.name,
+            'email': self.email,
             'number': self.number,
             'location': self.location,
             'range_miles': self.range_miles,
@@ -32,6 +48,12 @@ class User:
             'created_at': self.created_at,
             'updated_at': self.updated_at
         }
+        
+        # Only include password hash for admin/internal use
+        if include_sensitive:
+            data['password_hash'] = self.password_hash
+            
+        return data
     
     @classmethod
     def from_dict(cls, data):
@@ -39,6 +61,8 @@ class User:
         return cls(
             user_id=data.get('user_id'),
             name=data.get('name'),
+            email=data.get('email'),
+            password_hash=data.get('password_hash'),
             number=data.get('number'),
             location=data.get('location'),
             range_miles=data.get('range_miles'),
@@ -50,8 +74,7 @@ class User:
         )
     
     def __str__(self):
-        return f"User({self.name}, {self.number}, {self.location})"
+        return f"User({self.name}, {self.email}, {self.location})"
     
     def __repr__(self):
         return self.__str__()
-

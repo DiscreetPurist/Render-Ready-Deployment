@@ -1,156 +1,267 @@
-{% extends "base.html" %}
-
-{% block title %}Sign Up - Recovery Manager{% endblock %}
-
-{% block content %}
-<div class="row justify-content-center">
-    <div class="col-md-8">
-        <div class="card shadow">
-            <div class="card-header bg-primary text-white">
-                <h3>Sign Up for Recovery Manager</h3>
-            </div>
-            <div class="card-body">
-                <form id="signup-form">
-                    <div class="mb-3">
-                        <label for="name" class="form-label">Full Name</label>
-                        <input type="text" class="form-control" id="name" name="name" required>
-                    </div>
-                    <div class="mb-3">
-                        <label for="email" class="form-label">Email Address</label>
-                        <input type="email" class="form-control" id="email" name="email" required>
-                    </div>
-                    <div class="mb-3">
-                        <label for="phone" class="form-label">WhatsApp Number (with country code)</label>
-                        <input type="tel" class="form-control" id="phone" name="phone" placeholder="447123456789" required>
-                        <small class="text-muted">Format: 447123456789 (no spaces or symbols)</small>
-                    </div>
-                    <div class="mb-3">
-                        <label for="location" class="form-label">Your Location (City and Postcode)</label>
-                        <input type="text" class="form-control" id="location" name="location" placeholder="Manchester M8 0GW" required>
-                    </div>
-                    <div class="mb-3">
-                        <label for="range" class="form-label">Job Range (miles)</label>
-                        <select class="form-select" id="range" name="range" required>
-                            <option value="25">25 miles</option>
-                            <option value="50" selected>50 miles</option>
-                            <option value="75">75 miles</option>
-                            <option value="100">100 miles</option>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <div id="card-element" class="form-control">
-                            <!-- Stripe Element will be inserted here -->
-                        </div>
-                        <div id="card-errors" class="text-danger mt-2"></div>
-                    </div>
-                    <div class="d-grid">
-                        <button type="submit" id="submit-button" class="btn btn-primary btn-lg">Subscribe Now</button>
-                    </div>
-                </form>
-            </div>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recovery Manager - Sign Up</title>
+    <script src="https://js.stripe.com/v3/"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        button {
+            background: #007cba;
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            width: 100%;
+        }
+        button:hover {
+            background: #005a87;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .error {
+            color: red;
+            margin-top: 10px;
+        }
+        .success {
+            color: green;
+            margin-top: 10px;
+        }
+        #card-element {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background: white;
+        }
+        .pricing {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Recovery Manager Subscription</h1>
+        
+        <div class="pricing">
+            <h2>£9.99/month</h2>
+            <p>Get instant WhatsApp notifications for recovery jobs in your area</p>
         </div>
-    </div>
-</div>
-{% endblock %}
+        
+        <form id="subscription-form">
+            <div class="form-group">
+                <label for="name">Full Name</label>
+                <input type="text" id="name" name="name" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="email">Email Address</label>
+                <input type="email" id="email" name="email" required>
+            </div>
 
-{% block scripts %}
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" required minlength="6" placeholder="At least 6 characters">
+            </div>
+
+            <div class="form-group">
+                <label for="confirm-password">Confirm Password</label>
+                <input type="password" id="confirm-password" name="confirm_password" required minlength="6" placeholder="Confirm your password">
+            </div>
+            
+            <div class="form-group">
+                <label for="phone">WhatsApp Number (with country code)</label>
+                <input type="tel" id="phone" name="phone" placeholder="447123456789" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="location">Location (City/Postcode)</label>
+                <input type="text" id="location" name="location" placeholder="Manchester M1 1AA" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="range">Range (Miles)</label>
+                <select id="range" name="range" required>
+                    <option value="">Select range...</option>
+                    <option value="10">10 miles</option>
+                    <option value="25">25 miles</option>
+                    <option value="50">50 miles</option>
+                    <option value="75">75 miles</option>
+                    <option value="100">100 miles</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="card-element">Card Details</label>
+                <div id="card-element">
+                    <!-- Stripe Elements will create form elements here -->
+                </div>
+            </div>
+            
+            <button type="submit" id="submit-button">
+                Subscribe for £9.99/month
+            </button>
+            
+            <div id="error-message" class="error"></div>
+            <div id="success-message" class="success"></div>
+        </form>
+    </div>
+
+    <script>
         // Initialize Stripe
         const stripe = Stripe('{{ stripe_public_key }}');
         const elements = stripe.elements();
-        
-        // Create card Element
-        const cardElement = elements.create('card');
+
+        // Create card element
+        const cardElement = elements.create('card', {
+            style: {
+                base: {
+                    fontSize: '16px',
+                    color: '#424770',
+                    '::placeholder': {
+                        color: '#aab7c4',
+                    },
+                },
+            },
+        });
+
         cardElement.mount('#card-element');
-        
+
         // Handle form submission
-        const form = document.getElementById('signup-form');
+        const form = document.getElementById('subscription-form');
         const submitButton = document.getElementById('submit-button');
-        
-        form.addEventListener('submit', async function(event) {
+        const errorElement = document.getElementById('error-message');
+        const successElement = document.getElementById('success-message');
+
+        form.addEventListener('submit', async (event) => {
             event.preventDefault();
             
-            // Disable the submit button to prevent multiple submissions
             submitButton.disabled = true;
             submitButton.textContent = 'Processing...';
-            
-            // Collect customer data
-            const customerData = {
-                name: document.getElementById('name').value,
-                email: document.getElementById('email').value,
-                phone: document.getElementById('phone').value,
-                location: document.getElementById('location').value,
-                range: document.getElementById('range').value
-            };
-            
-            try {
-                // Create payment method
-                const result = await stripe.createPaymentMethod({
-                    type: 'card',
-                    card: cardElement,
-                    billing_details: {
-                        name: customerData.name,
-                        email: customerData.email,
-                        phone: customerData.phone
-                    }
-                });
-                
-                if (result.error) {
-                    // Show error to customer
-                    const errorElement = document.getElementById('card-errors');
-                    errorElement.textContent = result.error.message;
-                    submitButton.disabled = false;
-                    submitButton.textContent = 'Subscribe Now';
-                } else {
-                    // Send payment method ID and customer data to server
-                    const response = await fetch('/create-subscription', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            paymentMethodId: result.paymentMethod.id,
-                            customerData: customerData
-                        })
-                    });
-                    
-                    const subscription = await response.json();
-                    
-                    if (subscription.status === 'error') {
-                        // Show error to customer
-                        const errorElement = document.getElementById('card-errors');
-                        errorElement.textContent = subscription.message;
-                        submitButton.disabled = false;
-                        submitButton.textContent = 'Subscribe Now';
-                    } else if (subscription.status === 'requires_action') {
-                        // Handle 3D Secure authentication if needed
-                        const { error, paymentIntent } = await stripe.confirmCardPayment(
-                            subscription.clientSecret
-                        );
-                        
-                        if (error) {
-                            const errorElement = document.getElementById('card-errors');
-                            errorElement.textContent = error.message;
-                            submitButton.disabled = false;
-                            submitButton.textContent = 'Subscribe Now';
-                        } else {
-                            // Subscription successful
-                            window.location.href = '/website/thank-you';
-                        }
-                    } else if (subscription.status === 'success') {
-                        // Subscription successful
-                        window.location.href = '/website/thank-you';
-                    }
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                const errorElement = document.getElementById('card-errors');
-                errorElement.textContent = 'An unexpected error occurred. Please try again.';
+            errorElement.textContent = '';
+            successElement.textContent = '';
+
+            // In the form submission handler, add password validation:
+            const password = document.getElementById('password').value;
+            const confirmPassword = document.getElementById('confirm-password').value;
+
+            if (password !== confirmPassword) {
+                errorElement.textContent = 'Passwords do not match';
                 submitButton.disabled = false;
-                submitButton.textContent = 'Subscribe Now';
+                submitButton.textContent = 'Subscribe for £9.99/month';
+                return;
             }
+
+            if (password.length < 6) {
+                errorElement.textContent = 'Password must be at least 6 characters';
+                submitButton.disabled = false;
+                submitButton.textContent = 'Subscribe for £9.99/month';
+                return;
+            }
+
+            // Create payment method
+            const {error, paymentMethod} = await stripe.createPaymentMethod({
+                type: 'card',
+                card: cardElement,
+                billing_details: {
+                    name: document.getElementById('name').value,
+                    email: document.getElementById('email').value,
+                    phone: document.getElementById('phone').value,
+                },
+            });
+
+            if (error) {
+                errorElement.textContent = error.message;
+                submitButton.disabled = false;
+                submitButton.textContent = 'Subscribe for £9.99/month';
+                return;
+            }
+
+            // Create subscription
+            try {
+                const response = await fetch('/create-subscription', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        paymentMethodId: paymentMethod.id,
+                        customerData: {
+                            name: document.getElementById('name').value,
+                            email: document.getElementById('email').value,
+                            password: password,
+                            phone: document.getElementById('phone').value,
+                            location: document.getElementById('location').value,
+                            range: document.getElementById('range').value,
+                        }
+                    }),
+                });
+
+                const result = await response.json();
+
+                if (result.status === 'success') {
+                    successElement.textContent = 'Subscription created successfully! Welcome to Recovery Manager.';
+                    form.reset();
+                    setTimeout(() => {
+                        window.location.href = '/website/thank-you';
+                    }, 2000);
+                } else if (result.status === 'requires_action') {
+                    // Handle 3D Secure authentication
+                    const {error: confirmError} = await stripe.confirmCardPayment(result.client_secret);
+                    
+                    if (confirmError) {
+                        errorElement.textContent = confirmError.message;
+                    } else {
+                        successElement.textContent = 'Payment confirmed! Setting up your account...';
+                        setTimeout(() => {
+                            window.location.href = '/website/thank-you';
+                        }, 2000);
+                    }
+                } else {
+                    errorElement.textContent = result.message || 'An error occurred';
+                }
+            } catch (err) {
+                errorElement.textContent = 'Network error. Please try again.';
+            }
+
+            submitButton.disabled = false;
+            submitButton.textContent = 'Subscribe for £9.99/month';
         });
-    });
-</script>
-{% endblock %}
+    </script>
+</body>
+</html>
