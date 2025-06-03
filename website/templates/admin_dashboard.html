@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Recovery Manager - Admin Dashboard</title>
+    <title>Admin Dashboard - Recovery Manager</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -20,11 +20,14 @@
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
         .header {
-            border-bottom: 2px solid #007cba;
-            padding-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #eee;
         }
-        .stats-grid {
+        .stats {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 20px;
@@ -35,341 +38,588 @@
             padding: 20px;
             border-radius: 8px;
             text-align: center;
-            border-left: 4px solid #007cba;
         }
         .stat-number {
             font-size: 2em;
             font-weight: bold;
             color: #007cba;
         }
-        .stat-label {
-            color: #666;
-            margin-top: 5px;
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
         }
-        .users-table {
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .btn-primary { background: #007cba; color: white; }
+        .btn-success { background: #28a745; color: white; }
+        .btn-warning { background: #ffc107; color: black; }
+        .btn-danger { background: #dc3545; color: white; }
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn:hover { opacity: 0.8; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        
+        table {
             width: 100%;
             border-collapse: collapse;
             margin-top: 20px;
         }
-        .users-table th,
-        .users-table td {
+        th, td {
             padding: 12px;
             text-align: left;
             border-bottom: 1px solid #ddd;
         }
-        .users-table th {
-            background-color: #007cba;
-            color: white;
+        th {
+            background-color: #f8f9fa;
+            font-weight: bold;
         }
-        .users-table tr:hover {
+        tr:hover {
             background-color: #f5f5f5;
         }
-        .btn {
-            background: #007cba;
-            color: white;
-            padding: 10px 20px;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            text-decoration: none;
-            display: inline-block;
-            margin: 5px;
+        .status-active { color: #28a745; font-weight: bold; }
+        .status-inactive { color: #dc3545; font-weight: bold; }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
         }
-        .btn:hover {
-            background: #005a87;
-        }
-        .btn-danger {
-            background: #dc3545;
-        }
-        .btn-danger:hover {
-            background: #c82333;
-        }
-        .loading {
-            text-align: center;
+        .modal-content {
+            background-color: white;
+            margin: 15% auto;
             padding: 20px;
-            color: #666;
+            border-radius: 8px;
+            width: 80%;
+            max-width: 500px;
         }
-        .error {
-            color: red;
-            padding: 10px;
-            background: #ffe6e6;
-            border-radius: 5px;
-            margin: 10px 0;
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
         }
-        .auth-form {
-            max-width: 400px;
-            margin: 100px auto;
-            padding: 30px;
-            background: white;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
+        .close:hover { color: black; }
+        
         .form-group {
-            margin-bottom: 20px;
+            margin-bottom: 15px;
         }
         .form-group label {
             display: block;
             margin-bottom: 5px;
             font-weight: bold;
         }
-        .form-group input {
+        .form-group input, .form-group select {
             width: 100%;
-            padding: 10px;
+            padding: 8px;
             border: 1px solid #ddd;
-            border-radius: 5px;
-            font-size: 16px;
+            border-radius: 4px;
+        }
+        
+        .alert {
+            padding: 12px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+        }
+        .alert-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .alert-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .alert-info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+        
+        .checkbox-column {
+            width: 40px;
+            text-align: center;
+        }
+        
+        .actions-column {
+            width: 150px;
+        }
+        
+        .user-actions {
+            display: flex;
+            gap: 5px;
+        }
+        
+        .user-actions .btn {
+            padding: 4px 8px;
+            font-size: 12px;
         }
     </style>
 </head>
 <body>
-    <div id="auth-container" class="auth-form" style="display: none;">
-        <h2>Admin Login</h2>
-        <form id="login-form">
-            <div class="form-group">
-                <label for="username">Username:</label>
-                <input type="text" id="username" name="username" required>
-            </div>
-            <div class="form-group">
-                <label for="password">Password:</label>
-                <input type="password" id="password" name="password" required>
-            </div>
-            <button type="submit" class="btn">Login</button>
-        </form>
-        <div id="login-error" class="error" style="display: none;"></div>
-    </div>
-
-    <div id="dashboard-container" class="container" style="display: none;">
+    <div class="container">
         <div class="header">
-            <h1>Recovery Manager - Admin Dashboard</h1>
-            <button onclick="logout()" class="btn btn-danger">Logout</button>
+            <h1>Admin Dashboard</h1>
+            <button class="btn btn-secondary" onclick="refreshData()">Refresh</button>
         </div>
-
-        <div id="stats-container">
-            <div class="loading">Loading statistics...</div>
-        </div>
-
-        <div>
-            <h2>Recent Users</h2>
-            <button onclick="exportUsers()" class="btn">Export All Users (CSV)</button>
-            <button onclick="loadAllUsers()" class="btn">View All Users</button>
-            <div id="users-container">
-                <div class="loading">Loading users...</div>
+        
+        <div id="alerts"></div>
+        
+        <div class="stats" id="stats">
+            <div class="stat-card">
+                <div class="stat-number" id="total-users">-</div>
+                <div>Total Users</div>
             </div>
+            <div class="stat-card">
+                <div class="stat-number" id="active-users">-</div>
+                <div>Active Users</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="inactive-users">-</div>
+                <div>Inactive Users</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="recent-signups">-</div>
+                <div>Recent Signups (7 days)</div>
+            </div>
+        </div>
+        
+        <div class="controls">
+            <button class="btn btn-primary" onclick="showAddUserModal()">Add User</button>
+            <button class="btn btn-success" id="bulk-reactivate" onclick="bulkAction('reactivate')" disabled>Reactivate Selected</button>
+            <button class="btn btn-warning" id="bulk-deactivate" onclick="bulkAction('deactivate')" disabled>Deactivate Selected</button>
+            <button class="btn btn-danger" id="bulk-delete" onclick="bulkAction('delete')" disabled>Delete Selected</button>
+            <select id="filter-status" onchange="filterUsers()">
+                <option value="all">All Users</option>
+                <option value="active" selected>Active Only</option>
+                <option value="inactive">Inactive Only</option>
+            </select>
+        </div>
+        
+        <div id="users-table-container">
+            <div class="loading">Loading users...</div>
+        </div>
+    </div>
+    
+    <!-- Add/Edit User Modal -->
+    <div id="userModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h2 id="modal-title">Add User</h2>
+            <form id="user-form">
+                <div class="form-group">
+                    <label for="user-name">Name</label>
+                    <input type="text" id="user-name" name="name" required>
+                </div>
+                <div class="form-group">
+                    <label for="user-number">WhatsApp Number</label>
+                    <input type="tel" id="user-number" name="number" required>
+                </div>
+                <div class="form-group">
+                    <label for="user-location">Location</label>
+                    <input type="text" id="user-location" name="location" required>
+                </div>
+                <div class="form-group">
+                    <label for="user-range">Range (Miles)</label>
+                    <select id="user-range" name="range_miles" required>
+                        <option value="">Select range...</option>
+                        <option value="10">10 miles</option>
+                        <option value="25">25 miles</option>
+                        <option value="50">50 miles</option>
+                        <option value="75">75 miles</option>
+                        <option value="100">100 miles</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="user-stripe-customer">Stripe Customer ID</label>
+                    <input type="text" id="user-stripe-customer" name="stripe_customer_id">
+                </div>
+                <div class="form-group">
+                    <label for="user-subscription">Subscription ID</label>
+                    <input type="text" id="user-subscription" name="subscription_id">
+                </div>
+                <div class="form-group">
+                    <label for="user-active">Status</label>
+                    <select id="user-active" name="active">
+                        <option value="true">Active</option>
+                        <option value="false">Inactive</option>
+                    </select>
+                </div>
+                <div style="text-align: right; margin-top: 20px;">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save</button>
+                </div>
+            </form>
         </div>
     </div>
 
     <script>
-        let authCredentials = null;
-
-        // Check if already authenticated
-        const savedAuth = localStorage.getItem('adminAuth');
-        if (savedAuth) {
-            authCredentials = savedAuth;
-            showDashboard();
-        } else {
-            showLogin();
-        }
-
-        function showLogin() {
-            document.getElementById('auth-container').style.display = 'block';
-            document.getElementById('dashboard-container').style.display = 'none';
-        }
-
-        function showDashboard() {
-            document.getElementById('auth-container').style.display = 'none';
-            document.getElementById('dashboard-container').style.display = 'block';
+        let users = [];
+        let editingUser = null;
+        
+        // Load initial data
+        document.addEventListener('DOMContentLoaded', function() {
             loadStats();
-            loadRecentUsers();
-        }
-
-        function logout() {
-            localStorage.removeItem('adminAuth');
-            authCredentials = null;
-            showLogin();
-        }
-
-        document.getElementById('login-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const username = document.getElementById('username').value;
-            const password = document.getElementById('password').value;
-            const credentials = btoa(username + ':' + password);
-            
-            try {
-                const response = await fetch('/admin/login', {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': 'Basic ' + credentials
-                    }
-                });
-
-                if (response.ok) {
-                    authCredentials = credentials;
-                    localStorage.setItem('adminAuth', credentials);
-                    showDashboard();
-                } else {
-                    document.getElementById('login-error').textContent = 'Invalid credentials';
-                    document.getElementById('login-error').style.display = 'block';
-                }
-            } catch (error) {
-                document.getElementById('login-error').textContent = 'Login failed';
-                document.getElementById('login-error').style.display = 'block';
-            }
+            loadUsers();
         });
-
-        async function apiCall(url) {
-            const response = await fetch(url, {
-                headers: {
-                    'Authorization': 'Basic ' + authCredentials
-                }
-            });
-
-            if (response.status === 401) {
-                logout();
-                return null;
-            }
-
-            return response.json();
+        
+        function showAlert(message, type = 'info') {
+            const alertsContainer = document.getElementById('alerts');
+            const alert = document.createElement('div');
+            alert.className = `alert alert-${type}`;
+            alert.textContent = message;
+            alertsContainer.appendChild(alert);
+            
+            setTimeout(() => {
+                alert.remove();
+            }, 5000);
         }
-
+        
         async function loadStats() {
             try {
-                const data = await apiCall('/admin/database/stats');
-                if (!data) return;
-
-                const statsHtml = `
-                    <div class="stats-grid">
-                        <div class="stat-card">
-                            <div class="stat-number">${data.stats.total_users}</div>
-                            <div class="stat-label">Total Users</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-number">${data.stats.active_users}</div>
-                            <div class="stat-label">Active Users</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-number">${data.stats.inactive_users}</div>
-                            <div class="stat-label">Inactive Users</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-number">${data.stats.recent_signups_7_days}</div>
-                            <div class="stat-label">New This Week</div>
-                        </div>
-                    </div>
-                `;
-
-                document.getElementById('stats-container').innerHTML = statsHtml;
-            } catch (error) {
-                document.getElementById('stats-container').innerHTML = '<div class="error">Error loading stats</div>';
-            }
-        }
-
-        async function loadRecentUsers() {
-            try {
-                const data = await apiCall('/admin/database/stats');
-                if (!data) return;
-
-                let usersHtml = `
-                    <table class="users-table">
-                        <thead>
-                            <tr>
-                                <th>Name</th>
-                                <th>Number</th>
-                                <th>Location</th>
-                                <th>Range</th>
-                                <th>Status</th>
-                                <th>Created</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                `;
-
-                data.recent_users.forEach(user => {
-                    usersHtml += `
-                        <tr>
-                            <td>${user.name}</td>
-                            <td>${user.number}</td>
-                            <td>${user.location}</td>
-                            <td>${user.range_miles} miles</td>
-                            <td>${user.active ? 'Active' : 'Inactive'}</td>
-                            <td>${new Date(user.created_at).toLocaleDateString()}</td>
-                        </tr>
-                    `;
-                });
-
-                usersHtml += '</tbody></table>';
-                document.getElementById('users-container').innerHTML = usersHtml;
-            } catch (error) {
-                document.getElementById('users-container').innerHTML = '<div class="error">Error loading users</div>';
-            }
-        }
-
-        async function loadAllUsers() {
-            try {
-                const data = await apiCall('/admin/database/users?active_only=false&limit=100');
-                if (!data) return;
-
-                let usersHtml = `
-                    <h3>All Users (${data.total_count} total)</h3>
-                    <table class="users-table">
-                        <thead>
-                            <tr>
-                                <th>Name</th>
-                                <th>Number</th>
-                                <th>Location</th>
-                                <th>Range</th>
-                                <th>Status</th>
-                                <th>Created</th>
-                                <th>Stripe Customer</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                `;
-
-                data.users.forEach(user => {
-                    usersHtml += `
-                        <tr>
-                            <td>${user.name}</td>
-                            <td>${user.number}</td>
-                            <td>${user.location}</td>
-                            <td>${user.range_miles} miles</td>
-                            <td>${user.active ? 'Active' : 'Inactive'}</td>
-                            <td>${new Date(user.created_at).toLocaleDateString()}</td>
-                            <td>${user.stripe_customer_id ? 'Yes' : 'No'}</td>
-                        </tr>
-                    `;
-                });
-
-                usersHtml += '</tbody></table>';
-                document.getElementById('users-container').innerHTML = usersHtml;
-            } catch (error) {
-                document.getElementById('users-container').innerHTML = '<div class="error">Error loading all users</div>';
-            }
-        }
-
-        async function exportUsers() {
-            try {
-                const response = await fetch('/admin/export/users', {
-                    headers: {
-                        'Authorization': 'Basic ' + authCredentials
-                    }
-                });
-
-                if (response.ok) {
-                    const blob = await response.blob();
-                    const url = window.URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = 'users_export.csv';
-                    a.click();
-                    window.URL.revokeObjectURL(url);
-                } else {
-                    alert('Export failed');
+                const response = await fetch('/admin/database/stats');
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    document.getElementById('total-users').textContent = data.stats.total_users;
+                    document.getElementById('active-users').textContent = data.stats.active_users;
+                    document.getElementById('inactive-users').textContent = data.stats.inactive_users;
+                    document.getElementById('recent-signups').textContent = data.stats.recent_signups_7_days;
                 }
             } catch (error) {
-                alert('Export failed');
+                console.error('Error loading stats:', error);
+                showAlert('Error loading statistics', 'error');
+            }
+        }
+        
+        async function loadUsers() {
+            try {
+                const filter = document.getElementById('filter-status').value;
+                const activeOnly = filter === 'active' ? 'true' : 'false';
+                
+                const response = await fetch(`/admin/database/users?active_only=${activeOnly}&limit=100`);
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    users = data.users;
+                    renderUsersTable();
+                } else {
+                    showAlert('Error loading users: ' + data.message, 'error');
+                }
+            } catch (error) {
+                console.error('Error loading users:', error);
+                showAlert('Error loading users', 'error');
+            }
+        }
+        
+        function renderUsersTable() {
+            const container = document.getElementById('users-table-container');
+            
+            if (users.length === 0) {
+                container.innerHTML = '<div class="loading">No users found</div>';
+                return;
+            }
+            
+            const filteredUsers = filterUsersByStatus();
+            
+            const table = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th class="checkbox-column">
+                                <input type="checkbox" id="select-all" onchange="toggleSelectAll()">
+                            </th>
+                            <th>Name</th>
+                            <th>Number</th>
+                            <th>Location</th>
+                            <th>Range</th>
+                            <th>Status</th>
+                            <th>Created</th>
+                            <th class="actions-column">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${filteredUsers.map(user => `
+                            <tr>
+                                <td class="checkbox-column">
+                                    <input type="checkbox" class="user-checkbox" value="${user.number}" onchange="updateBulkButtons()">
+                                </td>
+                                <td>${user.name}</td>
+                                <td>${user.number}</td>
+                                <td>${user.location}</td>
+                                <td>${user.range_miles} miles</td>
+                                <td class="${user.active ? 'status-active' : 'status-inactive'}">
+                                    ${user.active ? 'Active' : 'Inactive'}
+                                </td>
+                                <td>${new Date(user.created_at).toLocaleDateString()}</td>
+                                <td class="actions-column">
+                                    <div class="user-actions">
+                                        <button class="btn btn-primary" onclick="editUser('${user.number}')">Edit</button>
+                                        ${user.active ? 
+                                            `<button class="btn btn-warning" onclick="deactivateUser('${user.number}')">Deactivate</button>` :
+                                            `<button class="btn btn-success" onclick="reactivateUser('${user.number}')">Reactivate</button>`
+                                        }
+                                        <button class="btn btn-danger" onclick="deleteUser('${user.number}')">Delete</button>
+                                    </div>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+            
+            container.innerHTML = table;
+            updateBulkButtons();
+        }
+        
+        function filterUsersByStatus() {
+            const filter = document.getElementById('filter-status').value;
+            
+            if (filter === 'all') return users;
+            if (filter === 'active') return users.filter(u => u.active);
+            if (filter === 'inactive') return users.filter(u => !u.active);
+            
+            return users;
+        }
+        
+        function filterUsers() {
+            renderUsersTable();
+        }
+        
+        function toggleSelectAll() {
+            const selectAll = document.getElementById('select-all');
+            const checkboxes = document.querySelectorAll('.user-checkbox');
+            
+            checkboxes.forEach(cb => {
+                cb.checked = selectAll.checked;
+            });
+            
+            updateBulkButtons();
+        }
+        
+        function updateBulkButtons() {
+            const checkedBoxes = document.querySelectorAll('.user-checkbox:checked');
+            const hasSelection = checkedBoxes.length > 0;
+            
+            document.getElementById('bulk-reactivate').disabled = !hasSelection;
+            document.getElementById('bulk-deactivate').disabled = !hasSelection;
+            document.getElementById('bulk-delete').disabled = !hasSelection;
+        }
+        
+        function getSelectedUsers() {
+            const checkedBoxes = document.querySelectorAll('.user-checkbox:checked');
+            return Array.from(checkedBoxes).map(cb => cb.value);
+        }
+        
+        async function bulkAction(action) {
+            const selectedUsers = getSelectedUsers();
+            
+            if (selectedUsers.length === 0) {
+                showAlert('No users selected', 'error');
+                return;
+            }
+            
+            const confirmMessage = `Are you sure you want to ${action} ${selectedUsers.length} user(s)?`;
+            if (!confirm(confirmMessage)) return;
+            
+            try {
+                const response = await fetch('/admin/database/users/bulk-action', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        action: action,
+                        user_numbers: selectedUsers
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    showAlert(`Bulk ${action} completed: ${data.summary.successful} successful, ${data.summary.failed} failed`, 'success');
+                    refreshData();
+                } else {
+                    showAlert('Bulk action failed: ' + data.message, 'error');
+                }
+            } catch (error) {
+                console.error('Bulk action error:', error);
+                showAlert('Bulk action failed', 'error');
+            }
+        }
+        
+        function showAddUserModal() {
+            editingUser = null;
+            document.getElementById('modal-title').textContent = 'Add User';
+            document.getElementById('user-form').reset();
+            document.getElementById('user-number').disabled = false;
+            document.getElementById('userModal').style.display = 'block';
+        }
+        
+        function editUser(number) {
+            const user = users.find(u => u.number === number);
+            if (!user) return;
+            
+            editingUser = user;
+            document.getElementById('modal-title').textContent = 'Edit User';
+            
+            // Populate form
+            document.getElementById('user-name').value = user.name;
+            document.getElementById('user-number').value = user.number;
+            document.getElementById('user-location').value = user.location;
+            document.getElementById('user-range').value = user.range_miles;
+            document.getElementById('user-stripe-customer').value = user.stripe_customer_id || '';
+            document.getElementById('user-subscription').value = user.subscription_id || '';
+            document.getElementById('user-active').value = user.active ? 'true' : 'false';
+            
+            // Disable number field when editing
+            document.getElementById('user-number').disabled = true;
+            
+            document.getElementById('userModal').style.display = 'block';
+        }
+        
+        function closeModal() {
+            document.getElementById('userModal').style.display = 'none';
+            editingUser = null;
+        }
+        
+        document.getElementById('user-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const userData = {};
+            
+            for (let [key, value] of formData.entries()) {
+                if (key === 'active') {
+                    userData[key] = value === 'true';
+                } else if (key === 'range_miles') {
+                    userData[key] = parseInt(value);
+                } else {
+                    userData[key] = value || null;
+                }
+            }
+            
+            try {
+                let response;
+                
+                if (editingUser) {
+                    // Update existing user
+                    response = await fetch(`/admin/database/users/${editingUser.number}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(userData)
+                    });
+                } else {
+                    // Add new user
+                    response = await fetch('/api/users', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(userData)
+                    });
+                }
+                
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    showAlert(editingUser ? 'User updated successfully' : 'User added successfully', 'success');
+                    closeModal();
+                    refreshData();
+                } else {
+                    showAlert('Error: ' + data.message, 'error');
+                }
+            } catch (error) {
+                console.error('Form submission error:', error);
+                showAlert('Error saving user', 'error');
+            }
+        });
+        
+        async function deactivateUser(number) {
+            if (!confirm('Are you sure you want to deactivate this user?')) return;
+            
+            try {
+                const response = await fetch(`/admin/database/users/${number}?type=soft`, {
+                    method: 'DELETE'
+                });
+                
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    showAlert('User deactivated successfully', 'success');
+                    refreshData();
+                } else {
+                    showAlert('Error deactivating user: ' + data.message, 'error');
+                }
+            } catch (error) {
+                console.error('Deactivate error:', error);
+                showAlert('Error deactivating user', 'error');
+            }
+        }
+        
+        async function reactivateUser(number) {
+            try {
+                const response = await fetch(`/admin/database/users/${number}/reactivate`, {
+                    method: 'POST'
+                });
+                
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    showAlert('User reactivated successfully', 'success');
+                    refreshData();
+                } else {
+                    showAlert('Error reactivating user: ' + data.message, 'error');
+                }
+            } catch (error) {
+                console.error('Reactivate error:', error);
+                showAlert('Error reactivating user', 'error');
+            }
+        }
+        
+        async function deleteUser(number) {
+            if (!confirm('Are you sure you want to permanently delete this user? This action cannot be undone.')) return;
+            
+            try {
+                const response = await fetch(`/admin/database/users/${number}?type=hard`, {
+                    method: 'DELETE'
+                });
+                
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    showAlert('User deleted successfully', 'success');
+                    refreshData();
+                } else {
+                    showAlert('Error deleting user: ' + data.message, 'error');
+                }
+            } catch (error) {
+                console.error('Delete error:', error);
+                showAlert('Error deleting user', 'error');
+            }
+        }
+        
+        function refreshData() {
+            loadStats();
+            loadUsers();
+        }
+        
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('userModal');
+            if (event.target === modal) {
+                closeModal();
             }
         }
     </script>
 </body>
 </html>
+

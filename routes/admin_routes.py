@@ -1,48 +1,13 @@
 from flask import Blueprint, jsonify, request
 import logging
 from datetime import datetime
-from utils.auth import requires_auth
 
 # Create a Blueprint for admin routes
 admin_bp = Blueprint('admin', __name__)
 
-@admin_bp.route('/admin/login', methods=['POST'])
-def admin_login():
-    """Test login endpoint"""
-    try:
-        auth = request.authorization
-        
-        if not auth:
-            return jsonify({
-                'status': 'error',
-                'message': 'No credentials provided'
-            }), 401
-        
-        from utils.auth import check_auth
-        
-        if check_auth(auth.username, auth.password):
-            return jsonify({
-                'status': 'success',
-                'message': 'Authentication successful',
-                'user': auth.username
-            }), 200
-        else:
-            return jsonify({
-                'status': 'error',
-                'message': 'Invalid credentials'
-            }), 401
-            
-    except Exception as e:
-        logging.error(f"Login error: {e}")
-        return jsonify({
-            'status': 'error',
-            'message': 'Login failed'
-        }), 500
-
 @admin_bp.route('/admin/database/stats', methods=['GET'])
-@requires_auth
 def database_stats():
-    """Get database statistics - PROTECTED"""
+    """Get database statistics"""
     try:
         from app import user_manager
         
@@ -85,9 +50,7 @@ def database_stats():
                     'location': user.location,
                     'range_miles': user.range_miles,
                     'created_at': user.created_at,
-                    'active': getattr(user, 'active', True),
-                    'stripe_customer_id': user.stripe_customer_id,
-                    'subscription_id': user.subscription_id
+                    'active': getattr(user, 'active', True)
                 } for user in sorted(all_users, key=lambda x: x.created_at, reverse=True)[:5]
             ]
         }), 200
@@ -97,9 +60,8 @@ def database_stats():
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 @admin_bp.route('/admin/database/users', methods=['GET'])
-@requires_auth
 def list_users():
-    """List all users with pagination - PROTECTED"""
+    """List all users with pagination"""
     try:
         from app import user_manager
         
@@ -133,9 +95,8 @@ def list_users():
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 @admin_bp.route('/admin/database/users/<number>', methods=['GET'])
-@requires_auth
 def get_user_details(number):
-    """Get detailed information about a specific user - PROTECTED"""
+    """Get detailed information about a specific user"""
     try:
         from app import user_manager
         
@@ -159,9 +120,8 @@ def get_user_details(number):
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 @admin_bp.route('/admin/database/users/<number>', methods=['PUT'])
-@requires_auth
-def update_user_admin(number):
-    """Update user details - PROTECTED"""
+def admin_update_user(number):
+    """Admin endpoint to update a user"""
     try:
         from app import user_manager
         
@@ -172,99 +132,154 @@ def update_user_admin(number):
         if not data:
             return jsonify({'status': 'error', 'message': 'No data provided'}), 400
         
-        # Update user
-        user = user_manager.update_user(number, **data)
-        if user:
+        # Get current user first
+        current_user = user_manager.get_user_by_number(number)
+        if not current_user:
+            return jsonify({'status': 'error', 'message': 'User not found'}), 404
+        
+        # Update user with provided data
+        updated_user = user_manager.update_user(number, **data)
+        if updated_user:
+            logging.info(f"Admin updated user {number}: {list(data.keys())}")
             return jsonify({
                 'status': 'success',
                 'message': 'User updated successfully',
-                'user': user.to_dict()
+                'user': updated_user.to_dict(),
+                'changes': list(data.keys())
             }), 200
         else:
-            return jsonify({'status': 'error', 'message': 'User not found'}), 404
-        
+            return jsonify({'status': 'error', 'message': 'Update failed'}), 400
+            
     except Exception as e:
-        logging.error(f"Error updating user: {e}")
+        logging.error(f"Admin update user error: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 @admin_bp.route('/admin/database/users/<number>', methods=['DELETE'])
-@requires_auth
-def delete_user_admin(number):
-    """Delete user - PROTECTED"""
+def admin_delete_user(number):
+    """Admin endpoint to delete a user (soft or hard delete)"""
     try:
         from app import user_manager
         
         if user_manager is None:
             return jsonify({'status': 'error', 'message': 'Service not ready'}), 503
         
-        soft_delete = request.args.get('soft', 'true').lower() == 'true'
-        
-        if soft_delete:
-            success = user_manager.deactivate_user(number)
-            message = 'User deactivated successfully'
-        else:
-            success = user_manager.delete_user(number)
-            message = 'User deleted successfully'
-        
-        if success:
-            return jsonify({
-                'status': 'success',
-                'message': message
-            }), 200
-        else:
+        # Check if user exists
+        user = user_manager.get_user_by_number(number)
+        if not user:
             return jsonify({'status': 'error', 'message': 'User not found'}), 404
         
+        # Get delete type from query parameter (default to soft delete)
+        delete_type = request.args.get('type', 'soft')
+        
+        if delete_type == 'hard':
+            # Hard delete - permanently remove from database
+            success = user_manager.delete_user(number)
+            action = 'permanently deleted'
+        else:
+            # Soft delete - deactivate user
+            success = user_manager.deactivate_user(number)
+            action = 'deactivated'
+        
+        if success:
+            logging.info(f"Admin {action} user: {user.name} ({number})")
+            return jsonify({
+                'status': 'success',
+                'message': f'User {action} successfully',
+                'action': action,
+                'user': user.to_dict()
+            }), 200
+        else:
+            return jsonify({'status': 'error', 'message': f'Failed to {action.split()[0]} user'}), 400
+            
     except Exception as e:
-        logging.error(f"Error deleting user: {e}")
+        logging.error(f"Admin delete user error: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
-@admin_bp.route('/admin/export/users', methods=['GET'])
-@requires_auth
-def export_users():
-    """Export users as CSV - PROTECTED"""
+@admin_bp.route('/admin/database/users/<number>/reactivate', methods=['POST'])
+def admin_reactivate_user(number):
+    """Admin endpoint to reactivate a deactivated user"""
     try:
         from app import user_manager
-        import csv
-        import io
-        from flask import make_response
         
         if user_manager is None:
             return jsonify({'status': 'error', 'message': 'Service not ready'}), 503
         
-        # Get all users
-        users = user_manager.get_users(active_only=False)
+        # Check if user exists
+        user = user_manager.get_user_by_number(number)
+        if not user:
+            return jsonify({'status': 'error', 'message': 'User not found'}), 404
         
-        # Create CSV in memory
-        output = io.StringIO()
-        writer = csv.writer(output)
+        # Reactivate user
+        updated_user = user_manager.update_user(number, active=True)
+        if updated_user:
+            logging.info(f"Admin reactivated user: {user.name} ({number})")
+            return jsonify({
+                'status': 'success',
+                'message': 'User reactivated successfully',
+                'user': updated_user.to_dict()
+            }), 200
+        else:
+            return jsonify({'status': 'error', 'message': 'Failed to reactivate user'}), 400
+            
+    except Exception as e:
+        logging.error(f"Admin reactivate user error: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@admin_bp.route('/admin/database/users/bulk-action', methods=['POST'])
+def admin_bulk_action():
+    """Admin endpoint for bulk actions on users"""
+    try:
+        from app import user_manager
         
-        # Write header
-        writer.writerow([
-            'Name', 'Number', 'Location', 'Range (Miles)', 
-            'Active', 'Created At', 'Stripe Customer ID', 'Subscription ID'
-        ])
+        if user_manager is None:
+            return jsonify({'status': 'error', 'message': 'Service not ready'}), 503
         
-        # Write user data
-        for user in users:
-            writer.writerow([
-                user.name,
-                user.number,
-                user.location,
-                user.range_miles,
-                getattr(user, 'active', True),
-                user.created_at,
-                user.stripe_customer_id or '',
-                user.subscription_id or ''
-            ])
+        data = request.json
+        if not data:
+            return jsonify({'status': 'error', 'message': 'No data provided'}), 400
         
-        # Create response
-        output.seek(0)
-        response = make_response(output.getvalue())
-        response.headers['Content-Type'] = 'text/csv'
-        response.headers['Content-Disposition'] = 'attachment; filename=users_export.csv'
+        action = data.get('action')
+        user_numbers = data.get('user_numbers', [])
         
-        return response
+        if not action or not user_numbers:
+            return jsonify({'status': 'error', 'message': 'Missing action or user_numbers'}), 400
+        
+        results = []
+        
+        for number in user_numbers:
+            try:
+                if action == 'deactivate':
+                    success = user_manager.deactivate_user(number)
+                elif action == 'reactivate':
+                    success = user_manager.update_user(number, active=True) is not None
+                elif action == 'delete':
+                    success = user_manager.delete_user(number)
+                else:
+                    results.append({'number': number, 'success': False, 'error': 'Invalid action'})
+                    continue
+                
+                results.append({'number': number, 'success': success})
+                
+            except Exception as e:
+                results.append({'number': number, 'success': False, 'error': str(e)})
+        
+        successful = len([r for r in results if r['success']])
+        failed = len(results) - successful
+        
+        logging.info(f"Admin bulk {action}: {successful} successful, {failed} failed")
+        
+        return jsonify({
+            'status': 'success',
+            'message': f'Bulk {action} completed',
+            'results': results,
+            'summary': {
+                'total': len(results),
+                'successful': successful,
+                'failed': failed
+            }
+        }), 200
         
     except Exception as e:
-        logging.error(f"Error exporting users: {e}")
+        logging.error(f"Admin bulk action error: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 500
+
