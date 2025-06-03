@@ -32,7 +32,9 @@ class UserManager:
         """
         try:
             # Check if user already exists by email or number
-            existing_user = self.get_user_by_email(email)
+            existing_user = None
+            if email:
+                existing_user = self.get_user_by_email(email)
             if not existing_user:
                 existing_user = self.get_user_by_number(number)
             
@@ -45,6 +47,10 @@ class UserManager:
                     'active': True
                 }
                 
+                # Update email if provided and different
+                if email and email != existing_user.email:
+                    update_data['email'] = email
+                
                 if stripe_customer_id:
                     update_data['stripe_customer_id'] = stripe_customer_id
                 if subscription_id:
@@ -54,7 +60,11 @@ class UserManager:
                     existing_user.set_password(password)
                     update_data['password_hash'] = existing_user.password_hash
                 
-                return self.update_user_by_email(email, **update_data)
+                # Use email if available, otherwise use number for update
+                if existing_user.email:
+                    return self.update_user_by_email(existing_user.email, **update_data)
+                else:
+                    return self.update_user(existing_user.number, **update_data)
             
             # Create new user
             user_id = str(uuid.uuid4())
@@ -64,7 +74,7 @@ class UserManager:
             user = User(
                 user_id=user_id,
                 name=name,
-                email=email,
+                email=email or f"user_{user_id}@temp.local",  # Temporary email if none provided
                 number=number,
                 location=location,
                 range_miles=range_miles,
@@ -129,6 +139,9 @@ class UserManager:
         Returns:
             User: User object if found, None otherwise
         """
+        if not email:
+            return None
+            
         try:
             with self.db_config.get_connection() as conn:
                 with conn.cursor(cursor_factory=RealDictCursor) as cursor:
@@ -182,13 +195,16 @@ class UserManager:
         Returns:
             User: Updated user object if found, None otherwise
         """
+        if not email:
+            return None
+            
         try:
             # Build dynamic update query
             set_clauses = []
             values = []
             
             # Valid fields that can be updated
-            valid_fields = ['name', 'location', 'range_miles', 'stripe_customer_id', 
+            valid_fields = ['name', 'email', 'location', 'range_miles', 'stripe_customer_id', 
                           'subscription_id', 'active', 'password_hash']
             
             for key, value in kwargs.items():
@@ -413,6 +429,5 @@ class UserManager:
         except Exception as e:
             logging.error(f"Error getting user count: {e}")
             return 0
-
 
 

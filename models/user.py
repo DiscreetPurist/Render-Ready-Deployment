@@ -1,6 +1,13 @@
 import uuid
-import bcrypt
 from datetime import datetime
+
+# Handle bcrypt import gracefully
+try:
+    import bcrypt
+    BCRYPT_AVAILABLE = True
+except ImportError:
+    BCRYPT_AVAILABLE = False
+    print("Warning: bcrypt not available. Password hashing will be disabled.")
 
 class User:
     """User model for the Recovery Manager application"""
@@ -23,12 +30,18 @@ class User:
     
     def set_password(self, password):
         """Hash and set password"""
+        if not BCRYPT_AVAILABLE:
+            raise RuntimeError("bcrypt is not available for password hashing")
+        
         if password:
             salt = bcrypt.gensalt()
             self.password_hash = bcrypt.hashpw(password.encode('utf-8'), salt).decode('utf-8')
     
     def check_password(self, password):
         """Check if provided password matches stored hash"""
+        if not BCRYPT_AVAILABLE:
+            return False
+            
         if not self.password_hash or not password:
             return False
         return bcrypt.checkpw(password.encode('utf-8'), self.password_hash.encode('utf-8'))
