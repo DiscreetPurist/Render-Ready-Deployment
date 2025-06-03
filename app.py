@@ -49,7 +49,7 @@ if not initialize_app():
     logging.error("Application startup failed")
     # Don't exit in production, let health check handle it
 
-# Import and register blueprints with error handling
+# Import and register essential blueprints only
 try:
     from routes.user_routes import user_bp
     app.register_blueprint(user_bp)
@@ -75,28 +75,25 @@ except ImportError as e:
     logging.error(f"Failed to import admin_routes: {e}")
 
 try:
-    from routes.debug_routes import debug_bp
-    app.register_blueprint(debug_bp)
-except ImportError as e:
-    logging.error(f"Failed to import debug_routes: {e}")
-
-try:
-    from routes.backup_routes import backup_bp
-    app.register_blueprint(backup_bp)
-except ImportError as e:
-    logging.error(f"Failed to import backup_routes: {e}")
-
-try:
-    from routes.wordpress_routes import wordpress_bp
-    app.register_blueprint(wordpress_bp)
-except ImportError as e:
-    logging.error(f"Failed to import wordpress_routes: {e}")
-
-try:
     from routes.auth_routes import auth_bp
     app.register_blueprint(auth_bp)
 except ImportError as e:
     logging.error(f"Failed to import auth_routes: {e}")
+
+# Optional routes (can be removed if not needed)
+try:
+    from routes.debug_routes import debug_bp
+    app.register_blueprint(debug_bp)
+    logging.info("Debug routes loaded (remove in production)")
+except ImportError as e:
+    logging.info("Debug routes not available")
+
+try:
+    from routes.backup_routes import backup_bp
+    app.register_blueprint(backup_bp)
+    logging.info("Backup routes loaded")
+except ImportError as e:
+    logging.info("Backup routes not available")
 
 @app.route('/health', methods=['GET'])
 def health_check():
