@@ -151,6 +151,11 @@
             cursor: pointer;
         }
         .close:hover { color: black; }
+        
+        .password-section {
+            border-color: #007cba;
+            background: #f8f9fa;
+        }
     </style>
 </head>
 <body>
@@ -197,6 +202,34 @@
                 <button type="submit" class="btn btn-primary" id="update-settings-btn">
                     <span id="update-text">Update Settings</span>
                     <span id="update-loading" style="display: none;">Updating...</span>
+                </button>
+            </form>
+        </div>
+        
+        <!-- Password Change Section -->
+        <div class="section password-section" id="password-section" style="display: none;">
+            <h2>Change Password</h2>
+            <p style="color: #666;">Update your account password for enhanced security.</p>
+            
+            <form id="password-form">
+                <div class="form-group">
+                    <label for="current-password">Current Password</label>
+                    <input type="password" id="current-password" name="current_password" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="new-password">New Password</label>
+                    <input type="password" id="new-password" name="new_password" required minlength="6" placeholder="At least 6 characters">
+                </div>
+                
+                <div class="form-group">
+                    <label for="confirm-new-password">Confirm New Password</label>
+                    <input type="password" id="confirm-new-password" name="confirm_new_password" required minlength="6" placeholder="Confirm new password">
+                </div>
+                
+                <button type="submit" class="btn btn-primary" id="change-password-btn">
+                    <span id="password-text">Change Password</span>
+                    <span id="password-loading" style="display: none;">Changing...</span>
                 </button>
             </form>
         </div>
@@ -266,11 +299,33 @@
 
     <script>
         let currentUser = null;
+        let authAvailable = false;
         
         // Check authentication and load user data on page load
         document.addEventListener('DOMContentLoaded', function() {
-            checkAuthAndLoadData();
+            checkAuthStatus();
         });
+
+        async function checkAuthStatus() {
+            try {
+                const response = await fetch('/api/user/auth-status');
+                const data = await response.json();
+                
+                authAvailable = data.auth_available;
+                
+                if (authAvailable) {
+                    document.getElementById('password-section').style.display = 'block';
+                    checkAuthAndLoadData();
+                } else {
+                    showAlert('Authentication features not available. Database migration may be needed.', 'info');
+                    // Still try to load basic data
+                    checkAuthAndLoadData();
+                }
+            } catch (error) {
+                console.error('Auth status check error:', error);
+                checkAuthAndLoadData();
+            }
+        }
 
         async function checkAuthAndLoadData() {
             try {
@@ -286,7 +341,7 @@
                 
                 // Update UI with user data
                 document.getElementById('user-name').textContent = currentUser.name;
-                document.getElementById('user-email').textContent = currentUser.email;
+                document.getElementById('user-email').textContent = currentUser.email || 'Not set';
                 document.getElementById('user-phone').textContent = currentUser.number;
                 document.getElementById('location').value = currentUser.location;
                 document.getElementById('range').value = currentUser.range_miles;
@@ -419,6 +474,75 @@
                 updateBtn.disabled = false;
                 updateText.style.display = 'inline';
                 updateLoading.style.display = 'none';
+            }
+        });
+
+        // Password change form submission
+        document.getElementById('password-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            if (!authAvailable) {
+                showAlert('Password change not available. Authentication features are disabled.', 'error');
+                return;
+            }
+            
+            const changeBtn = document.getElementById('change-password-btn');
+            const passwordText = document.getElementById('password-text');
+            const passwordLoading = document.getElementById('password-loading');
+            
+            changeBtn.disabled = true;
+            passwordText.style.display = 'none';
+            passwordLoading.style.display = 'inline';
+            
+            const formData = new FormData(e.target);
+            const currentPassword = formData.get('current_password');
+            const newPassword = formData.get('new_password');
+            const confirmPassword = formData.get('confirm_new_password');
+            
+            // Validate passwords match
+            if (newPassword !== confirmPassword) {
+                showAlert('New passwords do not match', 'error');
+                changeBtn.disabled = false;
+                passwordText.style.display = 'inline';
+                passwordLoading.style.display = 'none';
+                return;
+            }
+            
+            if (newPassword.length < 6) {
+                showAlert('New password must be at least 6 characters', 'error');
+                changeBtn.disabled = false;
+                passwordText.style.display = 'inline';
+                passwordLoading.style.display = 'none';
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/user/change-password', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        current_password: currentPassword,
+                        new_password: newPassword
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    showAlert('Password changed successfully!', 'success');
+                    document.getElementById('password-form').reset();
+                } else {
+                    showAlert(data.message || 'Password change failed', 'error');
+                }
+            } catch (error) {
+                console.error('Password change error:', error);
+                showAlert('Network error. Please try again.', 'error');
+            } finally {
+                changeBtn.disabled = false;
+                passwordText.style.display = 'inline';
+                passwordLoading.style.display = 'none';
             }
         });
 

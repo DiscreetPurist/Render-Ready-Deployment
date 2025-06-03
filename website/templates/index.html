@@ -1,46 +1,233 @@
-{% extends "base.html" %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recovery Manager - WhatsApp Recovery Notifications</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            line-height: 1.6;
+            color: #333;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1rem 0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .nav {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 20px;
+        }
+        .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+        .nav-links {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+        .nav-links a {
+            color: white;
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            transition: background 0.3s;
+        }
+        .nav-links a:hover {
+            background: rgba(255,255,255,0.1);
+        }
+        .btn-login {
+            background: rgba(255,255,255,0.2);
+            border: 1px solid rgba(255,255,255,0.3);
+        }
+        .btn-login:hover {
+            background: rgba(255,255,255,0.3);
+        }
+        .hero {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-align: center;
+            padding: 80px 20px;
+        }
+        .hero h1 {
+            font-size: 3rem;
+            margin-bottom: 20px;
+        }
+        .hero p {
+            font-size: 1.2rem;
+            margin-bottom: 30px;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .cta-button {
+            display: inline-block;
+            background: #ff6b6b;
+            color: white;
+            padding: 15px 30px;
+            text-decoration: none;
+            border-radius: 5px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            transition: background 0.3s;
+        }
+        .cta-button:hover {
+            background: #ff5252;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+        .features {
+            padding: 80px 0;
+            background: #f8f9fa;
+        }
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 40px;
+            margin-top: 50px;
+        }
+        .feature {
+            text-align: center;
+            padding: 30px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        .feature-icon {
+            font-size: 3rem;
+            margin-bottom: 20px;
+        }
+        .pricing {
+            padding: 80px 0;
+            text-align: center;
+        }
+        .price-card {
+            background: white;
+            border-radius: 10px;
+            padding: 40px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            max-width: 400px;
+            margin: 0 auto;
+        }
+        .price {
+            font-size: 3rem;
+            color: #007cba;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .footer {
+            background: #333;
+            color: white;
+            text-align: center;
+            padding: 40px 0;
+        }
+        @media (max-width: 768px) {
+            .nav {
+                flex-direction: column;
+                gap: 10px;
+            }
+            .nav-links {
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+            .hero h1 {
+                font-size: 2rem;
+            }
+            .hero p {
+                font-size: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <nav class="nav">
+            <div class="logo">Recovery Manager</div>
+            <div class="nav-links">
+                <a href="/website">Home</a>
+                <a href="/website/pricing">Pricing</a>
+                <a href="/website/contact">Contact</a>
+                <a href="/login" class="btn-login">Login</a>
+                <a href="/website/signup" class="cta-button">Sign Up</a>
+            </div>
+        </nav>
+    </header>
 
-{% block title %}Recovery Manager - Job Matching Service{% endblock %}
-
-{% block content %}
-<div class="row align-items-center">
-    <div class="col-lg-6">
-        <h1>Recovery Job Matching Service</h1>
-        <p class="lead">Get notified about recovery jobs in your area instantly. Never miss an opportunity again.</p>
-        <div class="mt-4">
-            <a href="/website/pricing" class="btn btn-primary btn-lg">Get Started</a>
-            <a href="/website/contact" class="btn btn-outline-secondary btn-lg ms-2">Learn More</a>
+    <section class="hero">
+        <div class="container">
+            <h1>Never Miss a Recovery Job Again</h1>
+            <p>Get instant WhatsApp notifications for recovery jobs in your area. Join hundreds of recovery drivers earning more with our smart notification system.</p>
+            <a href="/website/signup" class="cta-button">Start Getting Notifications - £9.99/month</a>
         </div>
-    </div>
-    <div class="col-lg-6">
-        <img src="https://placehold.co/600x400/e9ecef/495057?text=Recovery+Truck" alt="Recovery Truck" class="img-fluid rounded shadow">
-    </div>
-</div>
+    </section>
 
-<div class="row mt-5">
-    <div class="col-md-4">
-        <div class="card h-100">
-            <div class="card-body">
-                <h5 class="card-title">Real-time Notifications</h5>
-                <p class="card-text">Receive instant WhatsApp notifications about jobs in your area.</p>
+    <section class="features">
+        <div class="container">
+            <h2 style="text-align: center; font-size: 2.5rem; margin-bottom: 20px;">How It Works</h2>
+            <div class="features-grid">
+                <div class="feature">
+                    <div class="feature-icon">📱</div>
+                    <h3>Instant WhatsApp Alerts</h3>
+                    <p>Receive recovery job notifications directly to your WhatsApp within seconds of them being posted.</p>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">📍</div>
+                    <h3>Location-Based Matching</h3>
+                    <p>Only get notified about jobs within your specified range. Set your location and distance preferences.</p>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">⚡</div>
+                    <h3>Be First to Respond</h3>
+                    <p>Beat the competition by being among the first to know about new recovery opportunities in your area.</p>
+                </div>
             </div>
         </div>
-    </div>
-    <div class="col-md-4">
-        <div class="card h-100">
-            <div class="card-body">
-                <h5 class="card-title">Location-based Matching</h5>
-                <p class="card-text">Only get notified about jobs within your specified range.</p>
+    </section>
+
+    <section class="pricing">
+        <div class="container">
+            <h2 style="font-size: 2.5rem; margin-bottom: 20px;">Simple, Transparent Pricing</h2>
+            <div class="price-card">
+                <div class="price">£9.99<span style="font-size: 1rem; color: #666;">/month</span></div>
+                <h3>Recovery Notifications</h3>
+                <ul style="text-align: left; margin: 30px 0;">
+                    <li>✅ Instant WhatsApp notifications</li>
+                    <li>✅ Location-based job matching</li>
+                    <li>✅ Customizable range settings</li>
+                    <li>✅ 24/7 monitoring</li>
+                    <li>✅ Cancel anytime</li>
+                </ul>
+                <a href="/website/signup" class="cta-button" style="display: block; margin-top: 20px;">Get Started Now</a>
+                <p style="margin-top: 15px; color: #666; font-size: 0.9rem;">
+                    Already have an account? <a href="/login" style="color: #007cba;">Login here</a>
+                </p>
             </div>
         </div>
-    </div>
-    <div class="col-md-4">
-        <div class="card h-100">
-            <div class="card-body">
-                <h5 class="card-title">AI-Powered</h5>
-                <p class="card-text">Our AI analyzes job descriptions to ensure you only get relevant opportunities.</p>
-            </div>
+    </section>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2024 Recovery Manager. All rights reserved.</p>
+            <p>
+                <a href="/website/contact" style="color: #ccc;">Contact</a> | 
+                <a href="/login" style="color: #ccc;">Login</a> | 
+                <a href="/admin/login" style="color: #ccc;">Admin</a>
+            </p>
         </div>
-    </div>
-</div>
-{% endblock %}
+    </footer>
+</body>
+</html>

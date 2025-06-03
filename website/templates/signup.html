@@ -19,6 +19,18 @@
             border-radius: 10px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .header p {
+            color: #666;
+            margin: 0;
+        }
         .form-group {
             margin-bottom: 20px;
         }
@@ -33,6 +45,12 @@
             border: 1px solid #ddd;
             border-radius: 5px;
             font-size: 16px;
+            box-sizing: border-box;
+        }
+        input:focus, select:focus {
+            outline: none;
+            border-color: #007cba;
+            box-shadow: 0 0 5px rgba(0,124,186,0.3);
         }
         button {
             background: #007cba;
@@ -72,11 +90,25 @@
             margin-bottom: 20px;
             text-align: center;
         }
+        .links {
+            text-align: center;
+            margin-top: 20px;
+        }
+        .links a {
+            color: #007cba;
+            text-decoration: none;
+        }
+        .links a:hover {
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Recovery Manager Subscription</h1>
+        <div class="header">
+            <h1>Recovery Manager Subscription</h1>
+            <p>Join hundreds of recovery drivers earning more</p>
+        </div>
         
         <div class="pricing">
             <h2>£9.99/month</h2>
@@ -140,6 +172,11 @@
             <div id="error-message" class="error"></div>
             <div id="success-message" class="success"></div>
         </form>
+        
+        <div class="links">
+            <p>Already have an account? <a href="/login">Login here</a></p>
+            <p><a href="/website">Back to homepage</a></p>
+        </div>
     </div>
 
     <script>
@@ -176,7 +213,7 @@
             errorElement.textContent = '';
             successElement.textContent = '';
 
-            // In the form submission handler, add password validation:
+            // Validate passwords match
             const password = document.getElementById('password').value;
             const confirmPassword = document.getElementById('confirm-password').value;
 

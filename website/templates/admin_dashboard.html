@@ -12,7 +12,7 @@
             background-color: #f5f5f5;
         }
         .container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
             background: white;
             padding: 30px;
@@ -69,15 +69,19 @@
             width: 100%;
             border-collapse: collapse;
             margin-top: 20px;
+            font-size: 14px;
         }
         th, td {
-            padding: 12px;
+            padding: 8px;
             text-align: left;
             border-bottom: 1px solid #ddd;
+            word-wrap: break-word;
         }
         th {
             background-color: #f8f9fa;
             font-weight: bold;
+            position: sticky;
+            top: 0;
         }
         tr:hover {
             background-color: #f5f5f5;
@@ -101,7 +105,7 @@
             padding: 20px;
             border-radius: 8px;
             width: 90%;
-            max-width: 500px;
+            max-width: 600px;
             max-height: 90vh;
             overflow-y: auto;
             position: relative;
@@ -151,12 +155,13 @@
         }
         
         .actions-column {
-            width: 150px;
+            width: 120px;
         }
         
         .user-actions {
             display: flex;
             gap: 5px;
+            flex-wrap: wrap;
         }
         
         .user-actions .btn {
@@ -210,6 +215,42 @@
             color: #0c5460;
             border: 1px solid #bee5eb;
         }
+        
+        .password-hash {
+            font-family: monospace;
+            font-size: 11px;
+            color: #666;
+            max-width: 100px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        .email-column {
+            max-width: 150px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        .table-container {
+            overflow-x: auto;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        
+        .auth-status {
+            background: #e7f3ff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 4px solid #007cba;
+        }
+        
+        .auth-status h4 {
+            margin: 0 0 10px 0;
+            color: #007cba;
+        }
     </style>
 </head>
 <body>
@@ -224,6 +265,12 @@
         </div>
         
         <div id="alerts"></div>
+        
+        <!-- Authentication Status -->
+        <div class="auth-status" id="auth-status">
+            <h4>Authentication Status</h4>
+            <div id="auth-info">Checking authentication features...</div>
+        </div>
         
         <div class="stats" id="stats">
             <div class="stat-card">
@@ -273,8 +320,10 @@
             </select>
         </div>
         
-        <div id="users-table-container">
-            <div class="loading">Loading users...</div>
+        <div class="table-container">
+            <div id="users-table-container">
+                <div class="loading">Loading users...</div>
+            </div>
         </div>
     </div>
     
@@ -287,6 +336,15 @@
                 <div class="form-group">
                     <label for="user-name">Name</label>
                     <input type="text" id="user-name" name="name" required>
+                </div>
+                <div class="form-group" id="email-group">
+                    <label for="user-email">Email</label>
+                    <input type="email" id="user-email" name="email">
+                </div>
+                <div class="form-group" id="password-group">
+                    <label for="user-password">Password</label>
+                    <input type="password" id="user-password" name="password" minlength="6" placeholder="Leave blank to keep current password">
+                    <small style="color: #666;">Minimum 6 characters. Leave blank when editing to keep current password.</small>
                 </div>
                 <div class="form-group">
                     <label for="user-number">WhatsApp Number</label>
@@ -333,10 +391,12 @@
     <script>
         let users = [];
         let editingUser = null;
+        let authAvailable = false;
         
         // Check authentication on page load
         document.addEventListener('DOMContentLoaded', function() {
             checkAuth();
+            checkAuthStatus();
             loadStats();
             loadUsers();
         });
@@ -355,6 +415,49 @@
             } catch (error) {
                 console.error('Auth check error:', error);
                 window.location.href = '/admin/login';
+            }
+        }
+
+        async function checkAuthStatus() {
+            try {
+                const response = await fetch('/api/user/auth-status');
+                const data = await response.json();
+                
+                authAvailable = data.auth_available;
+                
+                const authInfo = document.getElementById('auth-info');
+                if (authAvailable) {
+                    authInfo.innerHTML = `
+                        <span style="color: #28a745;">✅ Authentication Available</span><br>
+                        <small>Email column: ${data.has_email ? '✅' : '❌'} | Password column: ${data.has_password_hash ? '✅' : '❌'}</small>
+                    `;
+                } else {
+                    authInfo.innerHTML = `
+                        <span style="color: #dc3545;">❌ Authentication Not Available</span><br>
+                        <small>Email column: ${data.has_email ? '✅' : '❌'} | Password column: ${data.has_password_hash ? '✅' : '❌'}</small><br>
+                        <small style="color: #666;">Run database migration to enable authentication features.</small>
+                    `;
+                }
+                
+                // Show/hide email and password fields in the form
+                const emailGroup = document.getElementById('email-group');
+                const passwordGroup = document.getElementById('password-group');
+                
+                if (data.has_email) {
+                    emailGroup.style.display = 'block';
+                } else {
+                    emailGroup.style.display = 'none';
+                }
+                
+                if (data.has_password_hash) {
+                    passwordGroup.style.display = 'block';
+                } else {
+                    passwordGroup.style.display = 'none';
+                }
+                
+            } catch (error) {
+                console.error('Auth status check error:', error);
+                document.getElementById('auth-info').innerHTML = '<span style="color: #dc3545;">❌ Error checking authentication status</span>';
             }
         }
 
@@ -448,6 +551,21 @@
             
             const filteredUsers = filterUsersByStatus();
             
+            // Build table headers dynamically based on available columns
+            let emailHeader = '';
+            let passwordHeader = '';
+            
+            // Check if any user has email or password data to determine if we should show columns
+            const hasEmailData = filteredUsers.some(user => user.email && user.email !== 'Not set');
+            const hasPasswordData = filteredUsers.some(user => user.password_hash);
+            
+            if (hasEmailData) {
+                emailHeader = '<th class="email-column">Email</th>';
+            }
+            if (hasPasswordData) {
+                passwordHeader = '<th>Password Hash</th>';
+            }
+            
             const table = `
                 <table>
                     <thead>
@@ -456,40 +574,58 @@
                                 <input type="checkbox" id="select-all" onchange="toggleSelectAll()">
                             </th>
                             <th>Name</th>
+                            ${emailHeader}
                             <th>Number</th>
                             <th>Location</th>
                             <th>Range</th>
                             <th>Status</th>
+                            ${passwordHeader}
                             <th>Created</th>
                             <th class="actions-column">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
-                        ${filteredUsers.map(user => `
-                            <tr>
-                                <td class="checkbox-column">
-                                    <input type="checkbox" class="user-checkbox" value="${user.number}" onchange="updateBulkButtons()">
-                                </td>
-                                <td>${user.name}</td>
-                                <td>${user.number}</td>
-                                <td>${user.location}</td>
-                                <td>${user.range_miles} miles</td>
-                                <td class="${user.active ? 'status-active' : 'status-inactive'}">
-                                    ${user.active ? 'Active' : 'Inactive'}
-                                </td>
-                                <td>${new Date(user.created_at).toLocaleDateString()}</td>
-                                <td class="actions-column">
-                                    <div class="user-actions">
-                                        <button class="btn btn-primary" onclick="editUser('${user.number}')">Edit</button>
-                                        ${user.active ? 
-                                            `<button class="btn btn-warning" onclick="deactivateUser('${user.number}')">Deactivate</button>` :
-                                            `<button class="btn btn-success" onclick="reactivateUser('${user.number}')">Reactivate</button>`
-                                        }
-                                        <button class="btn btn-danger" onclick="deleteUser('${user.number}')">Delete</button>
-                                    </div>
-                                </td>
-                            </tr>
-                        `).join('')}
+                        ${filteredUsers.map(user => {
+                            let emailCell = '';
+                            let passwordCell = '';
+                            
+                            if (hasEmailData) {
+                                const email = user.email && user.email !== 'Not set' ? user.email : '-';
+                                emailCell = `<td class="email-column" title="${email}">${email}</td>`;
+                            }
+                            if (hasPasswordData) {
+                                const passwordHash = user.password_hash ? user.password_hash.substring(0, 20) + '...' : '-';
+                                passwordCell = `<td class="password-hash" title="${user.password_hash || 'No password set'}">${passwordHash}</td>`;
+                            }
+                            
+                            return `
+                                <tr>
+                                    <td class="checkbox-column">
+                                        <input type="checkbox" class="user-checkbox" value="${user.number}" onchange="updateBulkButtons()">
+                                    </td>
+                                    <td>${user.name}</td>
+                                    ${emailCell}
+                                    <td>${user.number}</td>
+                                    <td>${user.location}</td>
+                                    <td>${user.range_miles} miles</td>
+                                    <td class="${user.active ? 'status-active' : 'status-inactive'}">
+                                        ${user.active ? 'Active' : 'Inactive'}
+                                    </td>
+                                    ${passwordCell}
+                                    <td>${new Date(user.created_at).toLocaleDateString()}</td>
+                                    <td class="actions-column">
+                                        <div class="user-actions">
+                                            <button class="btn btn-primary" onclick="editUser('${user.number}')">Edit</button>
+                                            ${user.active ? 
+                                                `<button class="btn btn-warning" onclick="deactivateUser('${user.number}')">Deactivate</button>` :
+                                                `<button class="btn btn-success" onclick="reactivateUser('${user.number}')">Reactivate</button>`
+                                            }
+                                            <button class="btn btn-danger" onclick="deleteUser('${user.number}')">Delete</button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            `;
+                        }).join('')}
                     </tbody>
                 </table>
             `;
@@ -587,6 +723,14 @@
             document.getElementById('modal-title').textContent = 'Add User';
             document.getElementById('user-form').reset();
             document.getElementById('user-number').disabled = false;
+            
+            // Make password required for new users if password functionality is available
+            const passwordField = document.getElementById('user-password');
+            if (authAvailable && passwordField.style.display !== 'none') {
+                passwordField.required = true;
+                passwordField.placeholder = 'Enter password (minimum 6 characters)';
+            }
+            
             document.getElementById('userModal').style.display = 'block';
         }
         
@@ -599,6 +743,7 @@
             
             // Populate form
             document.getElementById('user-name').value = user.name;
+            document.getElementById('user-email').value = user.email || '';
             document.getElementById('user-number').value = user.number;
             document.getElementById('user-location').value = user.location;
             document.getElementById('user-range').value = user.range_miles;
@@ -608,6 +753,12 @@
             
             // Disable number field when editing
             document.getElementById('user-number').disabled = true;
+            
+            // Make password optional for editing
+            const passwordField = document.getElementById('user-password');
+            passwordField.required = false;
+            passwordField.placeholder = 'Leave blank to keep current password';
+            passwordField.value = ''; // Clear password field for security
             
             document.getElementById('userModal').style.display = 'block';
         }
@@ -638,15 +789,28 @@
                     const rangeValue = parseInt(value);
                     if (isNaN(rangeValue) || rangeValue < 1 || rangeValue > 200) {
                         showAlert('Range must be a number between 1 and 200 miles', 'error');
+                        saveBtn.disabled = false;
+                        saveBtnText.style.display = 'inline';
+                        saveBtnLoading.style.display = 'none';
                         return;
                     }
                     userData[key] = rangeValue;
                 } else if (key === 'active') {
                     userData[key] = value === 'true';
-                } else if (key === 'range_miles') {
-                    userData[key] = parseInt(value);
-                } else {
-                    userData[key] = value || null;
+                } else if (key === 'password') {
+                    // Only include password if it's provided
+                    if (value.trim()) {
+                        if (value.length < 6) {
+                            showAlert('Password must be at least 6 characters', 'error');
+                            saveBtn.disabled = false;
+                            saveBtnText.style.display = 'inline';
+                            saveBtnLoading.style.display = 'none';
+                            return;
+                        }
+                        userData[key] = value;
+                    }
+                } else if (value.trim()) {
+                    userData[key] = value;
                 }
             }
             
@@ -792,6 +956,7 @@
         function refreshData() {
             loadStats();
             loadUsers();
+            checkAuthStatus();
         }
         
         // Close modal when clicking outside
@@ -867,7 +1032,6 @@
     </script>
 </body>
 </html>
-
 
 
 
