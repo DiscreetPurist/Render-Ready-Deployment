@@ -1,7 +1,8 @@
-from flask import Blueprint, render_template, request, jsonify, redirect, url_for
+from flask import Blueprint, render_template, request, jsonify, redirect, url_for, session
 import os
 import logging
 import stripe
+from routes.auth_routes import require_auth
 
 # Create a Blueprint for website routes
 website_bp = Blueprint('website', __name__, 
@@ -455,8 +456,10 @@ def cancel_subscription():
         return jsonify({'status': 'error', 'message': 'Internal server error'}), 500
 
 @website_bp.route('/admin', methods=['GET'])
+@require_auth
 def admin_dashboard():
-    """Admin dashboard page"""
+    """Admin dashboard page - protected by authentication"""
     return render_template('admin_dashboard.html')
+
 
 

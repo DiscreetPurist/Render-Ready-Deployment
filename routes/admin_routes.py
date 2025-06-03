@@ -1,11 +1,13 @@
 from flask import Blueprint, jsonify, request
 import logging
 from datetime import datetime
+from routes.auth_routes import require_auth
 
 # Create a Blueprint for admin routes
 admin_bp = Blueprint('admin', __name__)
 
 @admin_bp.route('/admin/database/stats', methods=['GET'])
+@require_auth
 def database_stats():
     """Get database statistics"""
     try:
@@ -60,6 +62,7 @@ def database_stats():
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 @admin_bp.route('/admin/database/users', methods=['GET'])
+@require_auth
 def list_users():
     """List all users with pagination"""
     try:
@@ -95,6 +98,7 @@ def list_users():
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 @admin_bp.route('/admin/database/users/<number>', methods=['GET'])
+@require_auth
 def get_user_details(number):
     """Get detailed information about a specific user"""
     try:
@@ -120,6 +124,7 @@ def get_user_details(number):
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 @admin_bp.route('/admin/database/users/<number>', methods=['PUT'])
+@require_auth
 def admin_update_user(number):
     """Admin endpoint to update a user"""
     try:
@@ -155,6 +160,7 @@ def admin_update_user(number):
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 @admin_bp.route('/admin/database/users/<number>', methods=['DELETE'])
+@require_auth
 def admin_delete_user(number):
     """Admin endpoint to delete a user (soft or hard delete)"""
     try:
@@ -196,6 +202,7 @@ def admin_delete_user(number):
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 @admin_bp.route('/admin/database/users/<number>/reactivate', methods=['POST'])
+@require_auth
 def admin_reactivate_user(number):
     """Admin endpoint to reactivate a deactivated user"""
     try:
@@ -226,6 +233,7 @@ def admin_reactivate_user(number):
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 @admin_bp.route('/admin/database/users/bulk-action', methods=['POST'])
+@require_auth
 def admin_bulk_action():
     """Admin endpoint for bulk actions on users"""
     try:
@@ -282,4 +290,3 @@ def admin_bulk_action():
     except Exception as e:
         logging.error(f"Admin bulk action error: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 500
-

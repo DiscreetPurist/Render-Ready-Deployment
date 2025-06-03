@@ -97,11 +97,14 @@
         }
         .modal-content {
             background-color: white;
-            margin: 15% auto;
+            margin: 5% auto;
             padding: 20px;
             border-radius: 8px;
-            width: 80%;
+            width: 90%;
             max-width: 500px;
+            max-height: 90vh;
+            overflow-y: auto;
+            position: relative;
         }
         .close {
             color: #aaa;
@@ -160,13 +163,26 @@
             padding: 4px 8px;
             font-size: 12px;
         }
+
+        .modal-footer {
+            position: sticky;
+            bottom: 0;
+            background: white;
+            padding: 15px 0 0 0;
+            margin-top: 20px;
+            border-top: 1px solid #eee;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
             <h1>Admin Dashboard</h1>
-            <button class="btn btn-secondary" onclick="refreshData()">Refresh</button>
+            <div>
+                <span id="admin-username" style="margin-right: 15px; color: #666;"></span>
+                <button class="btn btn-secondary" onclick="refreshData()">Refresh</button>
+                <button class="btn btn-danger" onclick="logout()" style="margin-left: 10px;">Logout</button>
+            </div>
         </div>
         
         <div id="alerts"></div>
@@ -251,12 +267,14 @@
                         <option value="false">Inactive</option>
                     </select>
                 </div>
-                <div style="text-align: right; margin-top: 20px;">
-                    <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
-                    <button type="submit" class="btn btn-primary" id="save-user-btn">
-                        <span id="save-btn-text">Save</span>
-                        <span id="save-btn-loading" style="display: none;">Saving...</span>
-                    </button>
+                <div class="modal-footer">
+                    <div style="text-align: right;">
+                        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                        <button type="submit" class="btn btn-primary" id="save-user-btn">
+                            <span id="save-btn-text">Save</span>
+                            <span id="save-btn-loading" style="display: none;">Saving...</span>
+                        </button>
+                    </div>
                 </div>
             </form>
         </div>
@@ -266,11 +284,42 @@
         let users = [];
         let editingUser = null;
         
-        // Load initial data
+        // Check authentication on page load
         document.addEventListener('DOMContentLoaded', function() {
+            checkAuth();
             loadStats();
             loadUsers();
         });
+
+        async function checkAuth() {
+            try {
+                const response = await fetch('/admin/verify-session');
+                
+                if (!response.ok) {
+                    window.location.href = '/admin/login';
+                    return;
+                }
+                
+                const data = await response.json();
+                document.getElementById('admin-username').textContent = `Logged in as: ${data.username}`;
+            } catch (error) {
+                console.error('Auth check error:', error);
+                window.location.href = '/admin/login';
+            }
+        }
+
+        function logout() {
+            if (confirm('Are you sure you want to logout?')) {
+                fetch('/admin/logout', {
+                    method: 'POST'
+                }).then(() => {
+                    window.location.href = '/admin/login';
+                }).catch(error => {
+                    console.error('Logout error:', error);
+                    window.location.href = '/admin/login';
+                });
+            }
+        }
         
         function showAlert(message, type = 'info') {
             const alertsContainer = document.getElementById('alerts');
@@ -287,6 +336,15 @@
         async function loadStats() {
             try {
                 const response = await fetch('/admin/database/stats');
+                
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        window.location.href = '/admin/login';
+                        return;
+                    }
+                    throw new Error('Failed to load stats');
+                }
+                
                 const data = await response.json();
                 
                 if (data.status === 'success') {
@@ -307,6 +365,15 @@
                 const activeOnly = filter === 'active' ? 'true' : 'false';
                 
                 const response = await fetch(`/admin/database/users?active_only=${activeOnly}&limit=100`);
+                
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        window.location.href = '/admin/login';
+                        return;
+                    }
+                    throw new Error('Failed to load users');
+                }
+                
                 const data = await response.json();
                 
                 if (data.status === 'success') {
@@ -443,6 +510,14 @@
                     })
                 });
                 
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        window.location.href = '/admin/login';
+                        return;
+                    }
+                    throw new Error('Bulk action failed');
+                }
+                
                 const data = await response.json();
                 
                 if (data.status === 'success') {
@@ -540,6 +615,14 @@
                     });
                 }
                 
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        window.location.href = '/admin/login';
+                        return;
+                    }
+                    throw new Error('Failed to save user');
+                }
+                
                 const data = await response.json();
                 
                 if (data.status === 'success') {
@@ -568,6 +651,14 @@
                     method: 'DELETE'
                 });
                 
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        window.location.href = '/admin/login';
+                        return;
+                    }
+                    throw new Error('Failed to deactivate user');
+                }
+                
                 const data = await response.json();
                 
                 if (data.status === 'success') {
@@ -587,6 +678,14 @@
                 const response = await fetch(`/admin/database/users/${number}/reactivate`, {
                     method: 'POST'
                 });
+                
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        window.location.href = '/admin/login';
+                        return;
+                    }
+                    throw new Error('Failed to reactivate user');
+                }
                 
                 const data = await response.json();
                 
@@ -609,6 +708,14 @@
                 const response = await fetch(`/admin/database/users/${number}?type=hard`, {
                     method: 'DELETE'
                 });
+                
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        window.location.href = '/admin/login';
+                        return;
+                    }
+                    throw new Error('Failed to delete user');
+                }
                 
                 const data = await response.json();
                 
@@ -639,4 +746,5 @@
     </script>
 </body>
 </html>
+
 

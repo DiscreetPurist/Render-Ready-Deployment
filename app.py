@@ -1,6 +1,7 @@
 import os
 import logging
 from flask import Flask, jsonify
+import secrets
 
 # Configure logging
 logging.basicConfig(
@@ -10,6 +11,12 @@ logging.basicConfig(
 
 # Create Flask app
 app = Flask(__name__)
+
+# Configure session
+app.secret_key = os.getenv('FLASK_SECRET_KEY', secrets.token_hex(16))
+app.config['SESSION_TYPE'] = 'filesystem'
+app.config['SESSION_PERMANENT'] = False
+app.config['PERMANENT_SESSION_LIFETIME'] = 28800  # 8 hours in seconds
 
 # Initialize database and user manager
 user_manager = None
@@ -46,12 +53,20 @@ if not initialize_app():
 from routes.user_routes import user_bp
 from routes.website_routes import website_bp
 from routes.webhook_routes import webhook_bp
-from routes.admin_routes import admin_bp  # Import admin routes
+from routes.admin_routes import admin_bp
+from routes.debug_routes import debug_bp
+from routes.backup_routes import backup_bp
+from routes.wordpress_routes import wordpress_bp  # Import WordPress routes
+from routes.auth_routes import auth_bp
 
 app.register_blueprint(user_bp)
 app.register_blueprint(website_bp)
 app.register_blueprint(webhook_bp)
-app.register_blueprint(admin_bp)  # Register admin blueprint
+app.register_blueprint(admin_bp)
+app.register_blueprint(debug_bp)
+app.register_blueprint(backup_bp)
+app.register_blueprint(wordpress_bp)  # Register WordPress blueprint
+app.register_blueprint(auth_bp)
 
 @app.route('/health', methods=['GET'])
 def health_check():
@@ -87,4 +102,5 @@ def root():
 
 if __name__ == '__main__':
     app.run(debug=False, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+
 
