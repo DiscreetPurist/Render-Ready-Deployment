@@ -35,6 +35,17 @@ class UserManager:
             self.has_email = False
             self.has_password_hash = False
     
+    def _format_timestamp(self, timestamp):
+        """Format timestamp to ISO format string, handling both datetime objects and strings"""
+        if timestamp is None:
+            return None
+        if isinstance(timestamp, str):
+            return timestamp
+        try:
+            return timestamp.isoformat()
+        except AttributeError:
+            return str(timestamp)
+    
     def add_user(self, name, email, number, location, range_miles, 
                  password=None, stripe_customer_id=None, subscription_id=None):
         """
@@ -139,8 +150,8 @@ class UserManager:
                         'location': row[3] if not self.has_email else row[5],
                         'range_miles': row[4] if not self.has_email else row[6],
                         'active': row[7] if not self.has_email else row[9],
-                        'created_at': (row[8] if not self.has_email else row[10]).isoformat() if (row[8] if not self.has_email else row[10]) else now,
-                        'updated_at': (row[9] if not self.has_email else row[11]).isoformat() if (row[9] if not self.has_email else row[11]) else now
+                        'created_at': self._format_timestamp(row[8] if not self.has_email else row[10]) or now,
+                        'updated_at': self._format_timestamp(row[9] if not self.has_email else row[11]) or now
                     }
                     
                     # Add email and password_hash if columns exist
@@ -182,9 +193,9 @@ class UserManager:
                         user_data = dict(row)
                         # Convert timestamps to ISO format
                         if user_data.get('created_at'):
-                            user_data['created_at'] = user_data['created_at'].isoformat()
+                            user_data['created_at'] = self._format_timestamp(user_data['created_at'])
                         if user_data.get('updated_at'):
-                            user_data['updated_at'] = user_data['updated_at'].isoformat()
+                            user_data['updated_at'] = self._format_timestamp(user_data['updated_at'])
                         
                         return User.from_dict(user_data)
                     
@@ -272,9 +283,9 @@ class UserManager:
                         user_data = dict(row)
                         # Convert timestamps to ISO format
                         if user_data.get('created_at'):
-                            user_data['created_at'] = user_data['created_at'].isoformat()
+                            user_data['created_at'] = self._format_timestamp(user_data['created_at'])
                         if user_data.get('updated_at'):
-                            user_data['updated_at'] = user_data['updated_at'].isoformat()
+                            user_data['updated_at'] = self._format_timestamp(user_data['updated_at'])
                         
                         # Add default email if column doesn't exist
                         if not self.has_email:
@@ -304,9 +315,9 @@ class UserManager:
                         user_data = dict(row)
                         # Convert timestamps to ISO format
                         if user_data.get('created_at'):
-                            user_data['created_at'] = user_data['created_at'].isoformat()
+                            user_data['created_at'] = self._format_timestamp(user_data['created_at'])
                         if user_data.get('updated_at'):
-                            user_data['updated_at'] = user_data['updated_at'].isoformat()
+                            user_data['updated_at'] = self._format_timestamp(user_data['updated_at'])
                         
                         # Add default email if column doesn't exist
                         if not self.has_email:
@@ -337,9 +348,9 @@ class UserManager:
                         user_data = dict(row)
                         # Convert timestamps to ISO format
                         if user_data.get('created_at'):
-                            user_data['created_at'] = user_data['created_at'].isoformat()
+                            user_data['created_at'] = self._format_timestamp(user_data['created_at'])
                         if user_data.get('updated_at'):
-                            user_data['updated_at'] = user_data['updated_at'].isoformat()
+                            user_data['updated_at'] = self._format_timestamp(user_data['updated_at'])
                         
                         # Add default email if column doesn't exist
                         if not self.has_email:
