@@ -298,14 +298,9 @@
                 </div>
                 <div class="form-group">
                     <label for="user-range">Range (Miles)</label>
-                    <select id="user-range" name="range_miles" required>
-                        <option value="">Select range...</option>
-                        <option value="10">10 miles</option>
-                        <option value="25">25 miles</option>
-                        <option value="50">50 miles</option>
-                        <option value="75">75 miles</option>
-                        <option value="100">100 miles</option>
-                    </select>
+                    <input type="number" id="user-range" name="range_miles" min="1" max="200" required 
+                           placeholder="Enter range between 1-200 miles">
+                    <small style="color: #666; font-size: 12px;">Enter a number between 1 and 200 miles</small>
                 </div>
                 <div class="form-group">
                     <label for="user-stripe-customer">Stripe Customer ID</label>
@@ -638,7 +633,15 @@
             const userData = {};
             
             for (let [key, value] of formData.entries()) {
-                if (key === 'active') {
+                // Add validation for range_miles
+                if (key === 'range_miles') {
+                    const rangeValue = parseInt(value);
+                    if (isNaN(rangeValue) || rangeValue < 1 || rangeValue > 200) {
+                        showAlert('Range must be a number between 1 and 200 miles', 'error');
+                        return;
+                    }
+                    userData[key] = rangeValue;
+                } else if (key === 'active') {
                     userData[key] = value === 'true';
                 } else if (key === 'range_miles') {
                     userData[key] = parseInt(value);
@@ -864,6 +867,7 @@
     </script>
 </body>
 </html>
+
 
 
 
